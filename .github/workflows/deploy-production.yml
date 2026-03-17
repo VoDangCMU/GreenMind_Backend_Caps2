@@ -15,27 +15,6 @@ jobs:
         uses: actions/checkout@v4
 
       # -------------------------------
-      # Install & start Tailscale
-      # -------------------------------
-      - name: Install Tailscale
-        run: |
-          curl -fsSL https://tailscale.com/install.sh | sh
-
-      - name: Start Tailscale
-        run: |
-          sudo tailscaled &
-          sleep 3
-          sudo tailscale up \
-            --authkey ${{ secrets.TAILSCALE_AUTH_KEY }}
-          sleep 5
-
-      # Optional but useful for debugging
-      - name: Debug Tailscale
-        run: |
-          tailscale status
-          ip a
-
-      # -------------------------------
       # Install sshpass
       # -------------------------------
       - name: Install sshpass
@@ -57,7 +36,7 @@ jobs:
 
           echo "Connected to server"
 
-          cd /home/debian/Green_MindMap_Backend
+          cd /home/tnqbao/Green_MindMap_Backend
 
           docker pull iamqbao/green_mind_backend:latest
 
