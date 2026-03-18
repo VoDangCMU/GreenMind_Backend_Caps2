@@ -13,6 +13,13 @@ import {Locations} from "./locations";
 import {BigFive} from "./big_five";
 import {Segment} from "./segments";
 
+export enum UserRole {
+    HOUSEHOLD = 'household',
+    COLLECTOR = 'collector',
+    ADMIN = 'admin',
+    USER = 'user',
+}
+
 @Entity('users')
 export class User {
     @PrimaryGeneratedColumn('uuid')
@@ -45,8 +52,11 @@ export class User {
     @Column({type: 'varchar', length: 50, nullable: true})
     region?: string;
 
-    @Column({type: 'varchar', length: 50, nullable: true})
+    @Column({type: 'varchar', length: 50, nullable: true, default: UserRole.USER})
     role!: string;
+
+    @Column({type: 'uuid', nullable: true})
+    householdId?: string;
 
     @Column({type: 'timestamp'})
     dateOfBirth!: Date;
