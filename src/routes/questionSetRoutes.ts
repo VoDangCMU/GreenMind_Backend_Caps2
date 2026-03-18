@@ -20,4 +20,3 @@ router.put('/:id', jwtAuthMiddleware, controller.questionSet.updateQuestionSet);
 router.delete('/:id', jwtAuthMiddleware, controller.questionSet.deleteQuestionSet);
 
 export default router;
-

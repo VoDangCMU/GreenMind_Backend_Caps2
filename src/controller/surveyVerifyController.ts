@@ -2,7 +2,6 @@ import { Request, Response, RequestHandler } from "express";
 import AppDataSource from "../infrastructure/database";
 import { BehaviorFeedback } from "../entity/behavior_feedback";
 import { Models } from "../entity/models";
-import { getLogger } from "../infrastructure/logger";
 import axios from "axios";
 
 interface VerifySurveyRequest {
@@ -44,7 +43,6 @@ class SurveyVerifyController {
      * POST /api/survey/verify
      */
     public verifySurvey: RequestHandler = async (req: Request, res: Response) => {
-        const logger = getLogger();
 
         try {
             const requestData: VerifySurveyRequest = req.body;
@@ -55,10 +53,6 @@ class SurveyVerifyController {
                 return;
             }
 
-            logger.info("Verifying survey", {
-                modelId: requestData.model.id,
-                userId: requestData.user_id
-            });
 
             // Call AI verify-survey API
             const response = await axios.post<VerifySurveyResponse>(
@@ -76,12 +70,6 @@ class SurveyVerifyController {
             const calculatedDeviation = Math.abs(verifyResult.expected - verifyResult.actual);
             const calculatedEngagement = 1 - calculatedDeviation;
 
-            logger.info("Survey verified successfully", {
-                modelId: verifyResult.model_id,
-                match: verifyResult.match,
-                deviation: calculatedDeviation,
-                engagement: calculatedEngagement
-            });
 
             // Save feedback to unified behavior_feedbacks table
             const feedbackRepository = AppDataSource.getRepository(BehaviorFeedback);
@@ -99,7 +87,6 @@ class SurveyVerifyController {
             });
 
             await feedbackRepository.save(feedback);
-            logger.info("Feedback saved successfully", { feedbackId: feedback.id });
 
             // Return response với deviation và engagement đã tính toán
             res.status(200).json({
@@ -108,7 +95,6 @@ class SurveyVerifyController {
                 engagement: calculatedEngagement
             });
         } catch (error) {
-            logger.error("Error verifying survey", error as Error);
 
             if (axios.isAxiosError(error)) {
                 res.status(error.response?.status || 500).json({
@@ -126,7 +112,6 @@ class SurveyVerifyController {
      * GET /api/models/feedbacks
      */
     public getFeedbacks: RequestHandler = async (req: Request, res: Response) => {
-        const logger = getLogger();
 
         try {
             const repo = AppDataSource.getRepository(BehaviorFeedback);
@@ -138,7 +123,6 @@ class SurveyVerifyController {
                 order: { createdAt: 'DESC' }
             });
 
-            logger.info("Feedbacks retrieved successfully", { count: surveyFeedbacks.length });
 
             // Cache behavior mechanism feedbacks by modelId
             const behaviorFeedbackCache = new Map<string, any[]>();
@@ -214,7 +198,6 @@ class SurveyVerifyController {
 
             res.status(200).json(formattedFeedbacks);
         } catch (error) {
-            logger.error("Error retrieving feedbacks", error as Error);
             res.status(500).json({ message: "Internal server error" });
         }
     };
@@ -224,7 +207,6 @@ class SurveyVerifyController {
      * GET /api/models/:id/feedbacks
      */
     public getFeedbacksByModelId: RequestHandler = async (req: Request, res: Response) => {
-        const logger = getLogger();
         const { id: modelId } = req.params;
 
         if (!modelId) {
@@ -255,7 +237,6 @@ class SurveyVerifyController {
                 order: { createdAt: 'DESC' }
             });
 
-            logger.info("Feedbacks by model retrieved successfully", { modelId, count: feedbacks.length });
 
             const behaviorFeedbackCache = new Map<string, any[]>();
 
@@ -342,7 +323,6 @@ class SurveyVerifyController {
                 }
             });
         } catch (error) {
-            logger.error("Error retrieving feedbacks by model ID", error as Error);
             res.status(500).json({ message: "Internal server error" });
         }
     };

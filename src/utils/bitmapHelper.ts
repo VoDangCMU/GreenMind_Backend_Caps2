@@ -1,12 +1,10 @@
 import { redis } from '../infrastructure/cache';
-import { getLogger } from '../infrastructure/logger';
 
 const BITMAP_KEY = 'bitmap:id_pool';
 const BLACKLIST_KEY = 'bitmap:blacklist';
 const BLACKLIST_EXPIRE_PREFIX = 'blacklist_expire:';
 
 export class BitmapHelper {
-    private static logger = getLogger();
 
     public static async allocateID(): Promise<number> {
         const id = await redis.bitpos(BITMAP_KEY, 0);
@@ -49,11 +47,9 @@ export class BitmapHelper {
         for (let id = 0; id < maxId; id++) {
             const bit = await redis.getbit(BITMAP_KEY, id);
             if (bit === 1 && !activeIDs.has(id)) {
-                this.logger.info(`Clearing stale bit at ${id}`);
                 await redis.setbit(BITMAP_KEY, id, 0);
             }
         }
-        this.logger.info('Bitmap cleanup complete.');
     }
 
     /**
@@ -79,7 +75,6 @@ export class BitmapHelper {
         } else {
             await this.blacklistID(tokenId);
         }
-        this.logger.info(`Token blacklisted with ID: ${tokenId}`);
     }
 
     /**

@@ -2,7 +2,6 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import AppDataSource from '../infrastructure/database';
 import { Behavior } from '../entity/behaviors';
-import { logger } from '../infrastructure/logger';
 
 const BehaviorSchema = z.object({
     name: z.string(),
@@ -27,7 +26,6 @@ const BehaviorRepository = AppDataSource.getRepository(Behavior);
 function validateBehaviorParams(req: Request, res: Response) {
     const parsed = BehaviorSchema.safeParse(req.body);
     if (!parsed.success) {
-        logger.error('Zod validation error', undefined, { details: parsed.error });
         res.status(400).json(parsed.error);
         return null;
     }
@@ -37,7 +35,6 @@ function validateBehaviorParams(req: Request, res: Response) {
 function validateBehaviorUpdateParams(req: Request, res: Response) {
     const parsed = BehaviorUpdateSchema.safeParse(req.body);
     if (!parsed.success) {
-        logger.error('Zod validation error', undefined, { details: parsed.error });
         res.status(400).json(parsed.error);
         return null;
     }
@@ -59,7 +56,6 @@ class BehaviorController {
             const savedBehavior = await BehaviorRepository.save(behavior);
             return res.status(201).json(savedBehavior);
         } catch (e) {
-            logger.error('Error creating behavior', e as Error);
             res.status(500).json({ message: "Internal server error" });
             return;
         }
@@ -68,7 +64,6 @@ class BehaviorController {
     public async getBehaviorById(req: Request, res: Response) {
         const parsed = BehaviorIdSchema.safeParse(req.params);
         if (!parsed.success) {
-            logger.error('Zod validation error', undefined, { details: parsed.error });
             return res.status(400).json(parsed.error);
         }
 
@@ -85,7 +80,6 @@ class BehaviorController {
 
             return res.status(200).json(behavior);
         } catch (e) {
-            logger.error('Error getting behavior', e as Error);
             return res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -93,7 +87,6 @@ class BehaviorController {
     public async updateBehaviorById(req: Request, res: Response) {
         const parsed = BehaviorIdSchema.safeParse(req.params);
         if (!parsed.success) {
-            logger.error('Zod validation error', undefined, { details: parsed.error });
             return res.status(400).json(parsed.error);
         }
 
@@ -119,7 +112,6 @@ class BehaviorController {
             const updatedBehavior = await BehaviorRepository.save(behavior);
             return res.status(200).json(updatedBehavior);
         } catch (e) {
-            logger.error('Error updating behavior', e as Error);
             return res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -127,7 +119,6 @@ class BehaviorController {
     public async deleteBehaviorById(req: Request, res: Response) {
         const parsed = BehaviorIdSchema.safeParse(req.params);
         if (!parsed.success) {
-            logger.error('Zod validation error', undefined, { details: parsed.error });
             return res.status(400).json(parsed.error);
         }
 
@@ -145,7 +136,6 @@ class BehaviorController {
             await BehaviorRepository.delete(behaviorId);
             return res.status(200).json({ message: 'Behavior deleted successfully' });
         } catch (e) {
-            logger.error('Error deleting behavior', e as Error);
             return res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -162,7 +152,6 @@ class BehaviorController {
                 count: behaviors.length
             });
         } catch (e) {
-            logger.error('Error getting all behaviors', e as Error);
             return res.status(500).json({ message: "Internal server error" });
         }
     }

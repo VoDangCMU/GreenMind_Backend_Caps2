@@ -1,7 +1,6 @@
 import cors from 'cors';
 import {Request, Response, NextFunction} from 'express';
 import {config} from '../config/env';
-import {logger} from '../infrastructure/logger';
 
 // CORS configuration
 const corsOptions: cors.CorsOptions = {
@@ -15,18 +14,8 @@ const corsOptions: cors.CorsOptions = {
     maxAge: 86400 // Cache preflight response for 24 hours
 };
 
-// CORS middleware with logging
+// CORS middleware
 export const corsMiddleware = (req: Request, res: Response, next: NextFunction) => {
-    // Log CORS requests for debugging
-    if (req.method === 'OPTIONS') {
-        logger.debug(`CORS preflight request from origin: ${req.get('Origin')}`, {
-            method: req.method,
-            url: req.url,
-            origin: req.get('Origin'),
-            userAgent: req.get('User-Agent')
-        });
-    }
-
     return cors(corsOptions)(req, res, next);
 };
 

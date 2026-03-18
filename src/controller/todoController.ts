@@ -1,7 +1,6 @@
 import { Request, Response, RequestHandler } from "express";
 import AppDataSource from "../infrastructure/database";
 import { Todo } from "../entity/todos";
-import { getLogger } from "../infrastructure/logger";
 import { Metrics } from "../entity/metrics";
 import { BigFive } from "../entity/big_five";
 import axios from "axios";
@@ -42,7 +41,6 @@ interface ListAdherenceResponse {
 
 class TodoController {
     public createTodo: RequestHandler = async (req: Request, res: Response) => {
-        const logger = getLogger();
         const userId = req.user?.userId;
 
         if (!userId) {
@@ -90,13 +88,11 @@ class TodoController {
 
             await todoRepository.save(newTodo);
 
-            logger.info("Todo created", { todoId: newTodo.id, userId });
             res.status(201).json({
                 message: "Todo created successfully",
                 data: newTodo
             });
         } catch (error) {
-            logger.error("Error creating todo", error as Error);
             res.status(500).json({ message: "Internal server error" });
         }
     };
@@ -107,7 +103,6 @@ class TodoController {
      * Body: { todos: [{ title, parent_id?, completed? }], parent_id? }
      */
     public createTodosList: RequestHandler = async (req: Request, res: Response) => {
-        const logger = getLogger();
         const userId = req.user?.userId;
 
         if (!userId) {
@@ -160,13 +155,11 @@ class TodoController {
 
             await todoRepository.save(newTodos);
 
-            logger.info("Multiple todos created", { count: newTodos.length, userId });
             res.status(201).json({
                 message: "Todos created successfully",
                 data: newTodos
             });
         } catch (error) {
-            logger.error("Error creating todos list", error as Error);
             res.status(500).json({ message: "Internal server error" });
         }
     };
@@ -176,7 +169,6 @@ class TodoController {
      * GET /api/todos
      */
     public getTodos: RequestHandler = async (req: Request, res: Response) => {
-        const logger = getLogger();
         const userId = req.user?.userId;
 
         if (!userId) {
@@ -253,13 +245,11 @@ class TodoController {
 
             rootTodos.forEach(root => calculateStats(root));
 
-            logger.info("Todos retrieved", { userId, count: rootTodos.length });
             res.status(200).json({
                 message: "Todos retrieved successfully",
                 data: rootTodos
             });
         } catch (error) {
-            logger.error("Error getting todos", error as Error);
             res.status(500).json({ message: "Internal server error" });
         }
     };
@@ -269,7 +259,6 @@ class TodoController {
      * GET /api/todos/:id
      */
     public getTodoById: RequestHandler = async (req: Request, res: Response) => {
-        const logger = getLogger();
         const userId = req.user?.userId;
 
         if (!userId) {
@@ -305,7 +294,6 @@ class TodoController {
             // Get list adherence from metrics table or calculate first time
             const adherenceResult = await this.getOrCalculateListAdherence(userId);
 
-            logger.info("Todo retrieved", { todoId: id, userId });
 
             if (adherenceResult) {
                 res.status(200).json({
@@ -320,7 +308,6 @@ class TodoController {
                 });
             }
         } catch (error) {
-            logger.error("Error getting todo", error as Error);
             res.status(500).json({ message: "Internal server error" });
         }
     };
@@ -330,7 +317,6 @@ class TodoController {
      * PUT /api/todos/:id
      */
     public updateTodo: RequestHandler = async (req: Request, res: Response) => {
-        const logger = getLogger();
         const userId = req.user?.userId;
 
         if (!userId) {
@@ -379,7 +365,6 @@ class TodoController {
 
             await todoRepository.save(todo);
 
-            logger.info("Todo updated", { todoId: id, userId });
 
             // Process list adherence after updating todo - always call API
             const adherenceResult = await this.processListAdherence(userId);
@@ -397,7 +382,6 @@ class TodoController {
                 });
             }
         } catch (error) {
-            logger.error("Error updating todo", error as Error);
             res.status(500).json({ message: "Internal server error" });
         }
     };
@@ -407,7 +391,6 @@ class TodoController {
      * DELETE /api/todos/:id
      */
     public deleteTodo: RequestHandler = async (req: Request, res: Response) => {
-        const logger = getLogger();
         const userId = req.user?.userId;
 
         if (!userId) {
@@ -432,12 +415,10 @@ class TodoController {
             // Delete will cascade to subtasks due to onDelete: 'CASCADE'
             await todoRepository.remove(todo);
 
-            logger.info("Todo deleted", { todoId: id, userId });
             res.status(200).json({
                 message: "Todo deleted successfully"
             });
         } catch (error) {
-            logger.error("Error deleting todo", error as Error);
             res.status(500).json({ message: "Internal server error" });
         }
     };
@@ -447,7 +428,6 @@ class TodoController {
      * PATCH /api/todos/:id/toggle
      */
     public toggleTodo: RequestHandler = async (req: Request, res: Response) => {
-        const logger = getLogger();
         const userId = req.user?.userId;
 
         if (!userId) {
@@ -472,13 +452,11 @@ class TodoController {
             todo.completed = !todo.completed;
             await todoRepository.save(todo);
 
-            logger.info("Todo toggled", { todoId: id, userId, completed: todo.completed });
             res.status(200).json({
                 message: "Todo toggled successfully",
                 data: todo
             });
         } catch (error) {
-            logger.error("Error toggling todo", error as Error);
             res.status(500).json({ message: "Internal server error" });
         }
     };
@@ -503,7 +481,6 @@ class TodoController {
      * Helper function to call list adherence API and update metrics
      */
     private async processListAdherence(userId: string): Promise<ListAdherenceResponse | null> {
-        const logger = getLogger();
 
         try {
             const metricsRepository = AppDataSource.getRepository(Metrics);
@@ -530,7 +507,6 @@ class TodoController {
             });
 
             if (!bigFive) {
-                logger.warn("BigFive not found for user", { userId });
                 return null;
             }
 
@@ -586,11 +562,9 @@ class TodoController {
 
             await bigFiveRepository.save(bigFive);
 
-            logger.info("List adherence processed", { userId, metric: result.metric });
 
             return result;
         } catch (error) {
-            logger.error("Error processing list adherence", error as Error);
             return null;
         }
     }
@@ -599,7 +573,6 @@ class TodoController {
      * Get or calculate list adherence for a user
      */
     private async getOrCalculateListAdherence(userId: string): Promise<ListAdherenceResponse | null> {
-        const logger = getLogger();
 
         try {
             const metricsRepository = AppDataSource.getRepository(Metrics);
@@ -639,7 +612,6 @@ class TodoController {
             });
 
             if (!bigFive) {
-                logger.warn("BigFive not found for user", { userId });
                 return null;
             }
 
@@ -695,11 +667,9 @@ class TodoController {
 
             await bigFiveRepository.save(bigFive);
 
-            logger.info("List adherence calculated and saved", { userId, metric: result.metric });
 
             return result;
         } catch (error) {
-            logger.error("Error getting or calculating list adherence", error as Error);
             return null;
         }
     }

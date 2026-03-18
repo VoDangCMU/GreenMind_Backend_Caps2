@@ -3,7 +3,6 @@ import { z } from 'zod';
 import AppDataSource from '../infrastructure/database';
 import { BigFive } from '../entity/big_five';
 import { User } from '../entity/user';
-import { logger } from '../infrastructure/logger';
 
 // Schema mới cho format scores
 const BigFiveScoresSchema = z.object({
@@ -39,7 +38,6 @@ class BigFiveController {
     public async submitBigFive(req: Request, res: Response) {
         const parsed = BigFiveScoresSchema.safeParse(req.body);
         if (!parsed.success) {
-            logger.error('Zod validation error', undefined, { details: parsed.error });
             return res.status(400).json({
                 message: 'Invalid input',
                 errors: parsed.error.errors
@@ -97,7 +95,6 @@ class BigFiveController {
                 }
             });
         } catch (e) {
-            logger.error('Error saving Big Five data', e as Error);
             return res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -106,7 +103,6 @@ class BigFiveController {
     public async getBigFiveByUserId(req: Request, res: Response) {
         const parsed = UserIdSchema.safeParse(req.params);
         if (!parsed.success) {
-            logger.error('Zod validation error', undefined, { details: parsed.error });
             return res.status(400).json(parsed.error);
         }
 
@@ -134,7 +130,6 @@ class BigFiveController {
                 }
             });
         } catch (e) {
-            logger.error('Error fetching Big Five data by user ID', e as Error);
             return res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -143,7 +138,6 @@ class BigFiveController {
     public async updateBigFive(req: Request, res: Response) {
         const parsed = BigFiveUpdateScoresSchema.safeParse(req.body);
         if (!parsed.success) {
-            logger.error('Zod validation error', undefined, { details: parsed.error });
             return res.status(400).json({
                 message: 'Invalid input',
                 errors: parsed.error.errors
@@ -152,7 +146,6 @@ class BigFiveController {
 
         const userIdParsed = UserIdSchema.safeParse(req.params);
         if (!userIdParsed.success) {
-            logger.error('Zod validation error', undefined, { details: userIdParsed.error });
             return res.status(400).json(userIdParsed.error);
         }
 
@@ -193,7 +186,6 @@ class BigFiveController {
                 }
             });
         } catch (e) {
-            logger.error('Error updating Big Five data', e as Error);
             return res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -202,7 +194,6 @@ class BigFiveController {
     public async deleteBigFive(req: Request, res: Response) {
         const parsed = UserIdSchema.safeParse(req.params);
         if (!parsed.success) {
-            logger.error('Zod validation error', undefined, { details: parsed.error });
             return res.status(400).json(parsed.error);
         }
 
@@ -233,7 +224,6 @@ class BigFiveController {
                 }
             });
         } catch (e) {
-            logger.error('Error deleting Big Five data', e as Error);
             return res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -268,7 +258,6 @@ class BigFiveController {
                 data: formattedList
             });
         } catch (e) {
-            logger.error('Error fetching all Big Five data', e as Error);
             return res.status(500).json({ message: "Internal server error" });
         }
     }

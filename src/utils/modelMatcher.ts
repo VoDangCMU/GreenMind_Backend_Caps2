@@ -1,7 +1,6 @@
 import AppDataSource from "../infrastructure/database";
 import { Models } from "../entity/models";
 import { User } from "../entity/user";
-import { logger } from "../infrastructure";
 
 const ModelsRepository = AppDataSource.getRepository(Models);
 const UserRepository = AppDataSource.getRepository(User);
@@ -19,7 +18,6 @@ export async function findMatchingModel(userId: string): Promise<Models | null> 
         });
 
         if (!user) {
-            logger.warn("User not found for model matching", { userId });
             return null;
         }
 
@@ -38,18 +36,10 @@ export async function findMatchingModel(userId: string): Promise<Models | null> 
         const userLocation = user.location?.toLowerCase() || '';
         const userGender = user.gender?.toLowerCase() || '';
 
-        logger.info("Finding matching model for user", {
-            userId,
-            userAge,
-            userLocation,
-            userGender
-        });
-
         // Lấy tất cả models
         const models = await ModelsRepository.find();
 
         if (models.length === 0) {
-            logger.warn("No models found in database");
             return null;
         }
 
@@ -74,7 +64,6 @@ export async function findMatchingModel(userId: string): Promise<Models | null> 
             // Match location (cho điểm nếu location chứa cùng từ khóa)
             if (userLocation && model.location) {
                 const modelLocation = model.location.toLowerCase();
-                // Kiểm tra các phần của location
                 const userLocationParts = userLocation.split(/[,\s]+/).filter(p => p.length > 2);
                 const modelLocationParts = modelLocation.split(/[,\s]+/).filter(p => p.length > 2);
 
@@ -91,7 +80,6 @@ export async function findMatchingModel(userId: string): Promise<Models | null> 
             // Match gender (cho điểm nếu giới tính khớp)
             if (userGender && model.gender) {
                 const modelGender = model.gender.toLowerCase();
-                // Normalize gender values
                 const normalizedUserGender = normalizeGender(userGender);
                 const normalizedModelGender = normalizeGender(modelGender);
 
@@ -100,33 +88,15 @@ export async function findMatchingModel(userId: string): Promise<Models | null> 
                 }
             }
 
-            logger.debug("Model matching score", {
-                modelId: model.id,
-                score,
-                modelAge: model.age,
-                modelLocation: model.location,
-                modelGender: model.gender
-            });
-
             if (score > bestScore) {
                 bestScore = score;
                 bestMatch = model;
             }
         }
 
-        if (bestMatch) {
-            logger.info("Found matching model for user", {
-                userId,
-                modelId: bestMatch.id,
-                score: bestScore
-            });
-        } else {
-            logger.warn("No matching model found for user", { userId });
-        }
-
         return bestMatch;
     } catch (error) {
-        logger.error("Error finding matching model", error as Error, { userId });
+        console.error("Error finding matching model", error);
         return null;
     }
 }
@@ -140,4 +110,3 @@ function normalizeGender(gender: string): string {
     if (g === 'nữ' || g === 'nu' || g === 'female' || g === 'f') return 'female';
     return g;
 }
-

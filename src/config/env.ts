@@ -36,12 +36,6 @@ const envSchema = z.object({
         allowedDomains: z.string().optional(),
         globalDomain: z.string().optional(),
     }),
-
-    grafana: z.object({
-        otlpEndpoint: z.string().default("http://localhost:3100/otlp"),
-        serviceName: z.string().default("green-mindmap-backend"),
-        group: z.string().default("green-mindmap"),
-    }),
 });
 
 const parsed = envSchema.safeParse({
@@ -72,11 +66,6 @@ const parsed = envSchema.safeParse({
     security: {
         allowedDomains: process.env.ALLOWED_DOMAINS,
         globalDomain: process.env.GLOBAL_DOMAIN,
-    },
-    grafana: {
-        otlpEndpoint: process.env.GRAFANA_OTLP_ENDPOINT,
-        serviceName: process.env.GRAFANA_SERVICE_NAME,
-        group: process.env.GRAFANA_GROUP,
     },
 });
 

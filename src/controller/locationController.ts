@@ -3,7 +3,6 @@ import {z} from 'zod';
 import AppDataSource from '../infrastructure/database';
 import {Locations} from '../entity/locations';
 import {User} from '../entity/user';
-import { logger } from '../infrastructure/logger';
 import TEXT from "../config/schemas/Text";
 import NUMBER from "../config/schemas/Number";
 import {Between} from "typeorm";
@@ -25,7 +24,6 @@ const UserRepository = AppDataSource.getRepository(User);
 function validateLocationParams(req: Request, res: Response) {
     const parsed = LocationSchema.safeParse(req.body);
     if (!parsed.success) {
-        logger.error('Zod validation error', undefined, {details: parsed.error});
         res.status(400).json(parsed.error);
         return null;
     }
@@ -67,19 +65,12 @@ class LocationController {
 
             const savedLocation = await LocationRepository.save(location);
 
-            logger.info("User location saved", {
-                userId: userId,
-                locationId: savedLocation.id,
-                latitude: data.latitude,
-                longitude: data.longitude
-            });
 
             return res.status(201).json({
                 message: "Location saved successfully",
                 data: savedLocation
             });
         } catch (e) {
-            logger.error('Error creating location', e as Error);
             res.status(500).json({ message: "Internal server error" });
             return;
         }
@@ -91,7 +82,6 @@ class LocationController {
 
         const parsed = LocationIdSchema.safeParse(req.params);
         if (!parsed.success) {
-            logger.error('Zod validation error', undefined, { details: parsed.error });
             return res.status(400).json(parsed.error);
         }
 
@@ -124,7 +114,6 @@ class LocationController {
                 data: updatedLocation
             });
         } catch (e) {
-            logger.error('Error updating location', e as Error);
             res.status(500).json({ message: "Internal server error" });
             return;
         }
@@ -133,7 +122,6 @@ class LocationController {
     public async getLocationById(req: Request, res: Response) {
         const parsed = LocationIdSchema.safeParse(req.params);
         if (!parsed.success) {
-            logger.error('Zod validation error', undefined, { details: parsed.error });
             return res.status(400).json(parsed.error);
         }
 
@@ -154,7 +142,6 @@ class LocationController {
 
             return res.status(200).json(location);
         } catch (e) {
-            logger.error('Error fetching location', e as Error);
             res.status(500).json({ message: "Internal server error" });
             return;
         }
@@ -163,7 +150,6 @@ class LocationController {
     public async deleteLocationById(req: Request, res: Response) {
         const parsed = LocationIdSchema.safeParse(req.params);
         if (!parsed.success) {
-            logger.error('Zod validation error', undefined, { details: parsed.error });
             return res.status(400).json(parsed.error);
         }
 
@@ -189,7 +175,6 @@ class LocationController {
                 data: location
             });
         } catch (e) {
-            logger.error('Error deleting location', e as Error);
             res.status(500).json({ message: "Internal server error" });
             return;
         }
@@ -222,7 +207,6 @@ class LocationController {
                 data: location
             });
         } catch (e) {
-            logger.error('Error fetching locations', e as Error);
             return res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -251,7 +235,6 @@ class LocationController {
                 data: location
             });
         } catch (e) {
-            logger.error('Error fetching latest location', e as Error);
             return res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -300,7 +283,6 @@ class LocationController {
                 }
             })
         } catch (e) {
-            logger.error('Error Get Distance To Day', e as Error);
             return res.status(500).json({ message: "Internal server error" });
 
         }

@@ -7,7 +7,6 @@ import { AvgDailySpend } from "../entity/daily_spend";
 import { BigFive } from "../entity/big_five";
 import { Metrics } from "../entity/metrics";
 import { User } from "../entity/user";
-import { logger } from "../infrastructure";
 
 const DailySpendingRepo = AppDataSource.getRepository(AvgDailySpend);
 const UserRepo = AppDataSource.getRepository(User);
@@ -36,22 +35,14 @@ const CreateOrUpdateAverageDailySchema = z.object({
 export class DailySpendingController {
     public CreateOrUpdateSpend = async (req: Request, res: Response) => {
         try {
-            logger.info("CreateOrUpdateSpend called", {
-                userId: req.user?.userId,
-                body: req.body
-            });
 
             const parsed = CreateOrUpdateSpendSchema.safeParse(req.body);
             if (!parsed.success) {
-                logger.warn("Invalid parameters for CreateOrUpdateSpend", {
-                    errors: parsed.error.errors
-                });
                 return res.status(400).json({ error: "Invalid parameters", details: parsed.error.errors });
             }
 
             const userId = req.user?.userId;
             if (!userId) {
-                logger.warn("Unauthorized access to CreateOrUpdateSpend");
                 return res.status(401).json({ error: "Unauthorized" });
             }
 
@@ -60,7 +51,6 @@ export class DailySpendingController {
             });
 
             if (!user) {
-                logger.warn("User not found", { userId });
                 return res.status(404).json({ error: "User not found" });
             }
 
@@ -82,12 +72,6 @@ export class DailySpendingController {
 
                 const saved = await DailySpendingRepo.save(dailySpendRecord);
 
-                logger.info("Spend updated successfully", {
-                    userId,
-                    recordId: saved.id,
-                    totalSpend: saved.total_spend,
-                    date: targetDate
-                });
 
                 return res.status(200).json({
                     success: true,
@@ -104,12 +88,6 @@ export class DailySpendingController {
 
                 const saved = await DailySpendingRepo.save(newRecord);
 
-                logger.info("Spend created successfully", {
-                    userId,
-                    recordId: saved.id,
-                    totalSpend: saved.total_spend,
-                    date: targetDate
-                });
 
                 return res.status(200).json({
                     success: true,
@@ -119,9 +97,6 @@ export class DailySpendingController {
             }
 
         } catch (e) {
-            logger.error("Failed to create or update spend", e as Error, {
-                userId: req.user?.userId
-            });
             return res.status(400).json({
                 error: "Failed to create or update spend",
                 details: e instanceof Error ? e.message : String(e),
@@ -131,16 +106,9 @@ export class DailySpendingController {
 
     public createOrUpdateAverageDaily = async (req: Request, res: Response) => {
         try {
-            logger.info("createOrUpdateAverageDaily called", {
-                userId: req.user?.userId,
-                body: req.body
-            });
 
             const parsed = CreateOrUpdateAverageDailySchema.safeParse(req.body);
             if (!parsed.success) {
-                logger.warn("Invalid parameters for createOrUpdateAverageDaily", {
-                    errors: parsed.error.errors
-                });
                 return res.status(400).json({
                     error: "Invalid parameters",
                     details: parsed.error.errors
@@ -149,7 +117,6 @@ export class DailySpendingController {
 
             const userId = req.user?.userId;
             if (!userId) {
-                logger.warn("Unauthorized access to createOrUpdateAverageDaily");
                 return res.status(401).json({ error: "Unauthorized" });
             }
 
@@ -161,7 +128,6 @@ export class DailySpendingController {
             });
 
             if (!bigFive) {
-                logger.warn("BigFive not found for user", { userId });
                 return res.status(404).json({ error: "BigFive scores not found for user" });
             }
 
@@ -185,10 +151,6 @@ export class DailySpendingController {
                 ocean_score
             };
 
-            logger.info("Calling AI API for avg_daily_spend", {
-                userId,
-                payload: apiPayload
-            });
 
             // Call AI API
             const aiResponse = await axios.post(
@@ -203,10 +165,6 @@ export class DailySpendingController {
 
             const aiData = aiResponse.data;
 
-            logger.info("AI API response received", {
-                userId,
-                metric: aiData.metric
-            });
 
             // Update or create Metrics record
             let metricRecord = await MetricsRepo.findOne({
@@ -254,10 +212,6 @@ export class DailySpendingController {
 
                 await BigFiveRepo.save(bigFive);
 
-                logger.info("BigFive updated with new ocean scores", {
-                    userId,
-                    newScores: aiData.new_ocean_score
-                });
             }
 
             // Return the exact format as received from AI API
@@ -265,19 +219,12 @@ export class DailySpendingController {
 
         } catch (e) {
             if (axios.isAxiosError(e)) {
-                logger.error("AI API call failed", e, {
-                    userId: req.user?.userId,
-                    response: e.response?.data
-                });
                 return res.status(e.response?.status || 500).json({
                     error: "Failed to calculate average daily spend",
                     details: e.response?.data || e.message
                 });
             }
 
-            logger.error("Failed to create or update average daily spend", e as Error, {
-                userId: req.user?.userId
-            });
             return res.status(500).json({
                 error: "Failed to create or update average daily spend",
                 details: e instanceof Error ? e.message : String(e),
@@ -289,11 +236,9 @@ export class DailySpendingController {
         try {
             const userId = req.user?.userId;
             if (!userId) {
-                logger.warn("Unauthorized access to getAverageDailySpend");
                 return res.status(401).json({ error: "Unauthorized" });
             }
 
-            logger.info("getAverageDailySpend called", { userId });
 
             // Tìm metric avg_daily_spend của user
             const metricRecord = await MetricsRepo.findOne({
@@ -304,7 +249,6 @@ export class DailySpendingController {
             });
 
             if (!metricRecord) {
-                logger.warn("No avg_daily_spend metric found for user", { userId });
                 return res.status(404).json({
                     error: "No avg_daily_spend metric found for this user"
                 });
@@ -319,7 +263,6 @@ export class DailySpendingController {
             });
 
             if (!user || !user.bigFive) {
-                logger.warn("User or big five data not found", { userId });
                 return res.status(404).json({
                     error: "User or big five data not found"
                 });
@@ -343,17 +286,10 @@ export class DailySpendingController {
                 reason: metricRecord.metadata?.reason || null
             };
 
-            logger.info("Successfully retrieved avg_daily_spend metric", {
-                userId,
-                metric: response
-            });
 
             return res.status(200).json(response);
 
         } catch (e) {
-            logger.error("Failed to get avg_daily_spend metric", e as Error, {
-                userId: req.user?.userId
-            });
             return res.status(500).json({
                 error: "Failed to get avg_daily_spend metric",
                 details: e instanceof Error ? e.message : String(e),

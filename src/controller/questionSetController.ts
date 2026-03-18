@@ -4,7 +4,6 @@ import AppDataSource from '../infrastructure/database';
 import {QuestionSets} from '../entity/question_sets';
 import {Questions} from '../entity/questions';
 import {User} from '../entity/user';
-import {logger} from '../infrastructure';
 import {In} from "typeorm";
 
 const CreateQuestionSetSchema = z.object({
@@ -32,7 +31,6 @@ export class QuestionSetController {
     public async createQuestionSet(req: Request, res: Response) {
         const parsed = CreateQuestionSetSchema.safeParse(req.body);
         if (!parsed.success) {
-            logger.error('Question set validation error', undefined, { details: parsed.error });
             return res.status(400).json({
                 message: "Validation error",
                 errors: parsed.error.format()
@@ -44,7 +42,6 @@ export class QuestionSetController {
         if (!userId) {
             return res.status(401).json({message: "Unauthorized"});
         }
-        logger.info('Creating question set', {userId, data});
         try {
             const user = await UserRepository.findOne({ where: { id: userId } });
             if (!user) {
@@ -87,7 +84,6 @@ export class QuestionSetController {
                 data: savedQuestionSet
             });
         } catch (e) {
-            logger.error('Error creating question set', e as Error);
             return res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -105,7 +101,6 @@ export class QuestionSetController {
                 count: questionSets.length
             });
         } catch (e) {
-            logger.error('Error fetching question sets', e as Error);
             return res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -130,7 +125,6 @@ export class QuestionSetController {
                 count: questionSets.length
             });
         } catch (e) {
-            logger.error('Error fetching question sets by owner', e as Error);
             return res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -138,7 +132,6 @@ export class QuestionSetController {
     public async getQuestionSetById(req: Request, res: Response) {
         const parsed = QuestionSetIdSchema.safeParse(req.params);
         if (!parsed.success) {
-            logger.error('Question set ID validation error', undefined, { details: parsed.error });
             return res.status(400).json({
                 message: "Invalid question set ID format",
                 errors: parsed.error.format()
@@ -162,7 +155,6 @@ export class QuestionSetController {
                 data: questionSet
             });
         } catch (e) {
-            logger.error('Error fetching question set', e as Error);
             return res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -170,7 +162,6 @@ export class QuestionSetController {
     public async updateQuestionSet(req: Request, res: Response) {
         const parsed = QuestionSetIdSchema.safeParse(req.params);
         if (!parsed.success) {
-            logger.error('Question set ID validation error', undefined, { details: parsed.error });
             return res.status(400).json({
                 message: "Invalid question set ID format",
                 errors: parsed.error.format()
@@ -179,7 +170,6 @@ export class QuestionSetController {
 
         const dataParsed = UpdateQuestionSetSchema.safeParse(req.body);
         if (!dataParsed.success) {
-            logger.error('Question set update validation error', undefined, { details: dataParsed.error });
             return res.status(400).json({
                 message: "Validation error",
                 errors: dataParsed.error.format()
@@ -245,7 +235,6 @@ export class QuestionSetController {
                 data: result
             });
         } catch (e) {
-            logger.error('Error updating question set', e as Error);
             return res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -253,7 +242,6 @@ export class QuestionSetController {
     public async deleteQuestionSet(req: Request, res: Response) {
         const parsed = QuestionSetIdSchema.safeParse(req.params);
         if (!parsed.success) {
-            logger.error('Question set ID validation error', undefined, { details: parsed.error });
             return res.status(400).json({
                 message: "Invalid question set ID format",
                 errors: parsed.error.format()
@@ -286,7 +274,6 @@ export class QuestionSetController {
                 message: "Question set deleted successfully"
             });
         } catch (e) {
-            logger.error('Error deleting question set', e as Error);
             return res.status(500).json({ message: "Internal server error" });
         }
     }

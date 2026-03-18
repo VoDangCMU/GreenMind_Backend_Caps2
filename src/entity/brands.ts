@@ -35,4 +35,3 @@ export class Brand {
     @JoinColumn({ name: "userId" })
     user!: User;
 }
-

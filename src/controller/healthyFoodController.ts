@@ -1,5 +1,4 @@
 import { Request, Response, RequestHandler } from "express";
-import { getLogger } from "../infrastructure/logger";
 import axios from "axios";
 import FormData from "form-data";
 
@@ -17,7 +16,6 @@ class HealthyFoodController {
      * Body: multipart/form-data with file field
      */
     public analyzeHealthyFood: RequestHandler = async (req: Request, res: Response) => {
-        const logger = getLogger();
         const userId = req.user?.userId;
 
         if (!userId) {
@@ -50,12 +48,10 @@ class HealthyFoodController {
             );
 
             const result = response.data;
-            logger.info("Healthy food analysis completed", { userId, vegetable_ratio: result.vegetable_ratio_percent });
 
             // Return the exact response from AI API
             res.status(200).json(result);
         } catch (error) {
-            logger.error("Error analyzing healthy food", error as Error);
 
             if (axios.isAxiosError(error)) {
                 res.status(error.response?.status || 500).json({

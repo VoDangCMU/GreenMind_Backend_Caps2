@@ -3,7 +3,6 @@ import { z } from 'zod';
 import AppDataSource from '../infrastructure/database';
 import { PreAppSurvey } from '../entity/pre_app_survey';
 import { User } from '../entity/user';
-import { logger } from '../infrastructure/logger';
 
 const PreAppSurveyRepository = AppDataSource.getRepository(PreAppSurvey);
 const UserRepository = AppDataSource.getRepository(User);
@@ -102,7 +101,6 @@ class PreAppSurveyController {
     public async submitPreAppSurvey(req: Request, res: Response) {
         const parsed = PreAppSurveySchema.safeParse(req.body);
         if (!parsed.success) {
-            logger.error('Zod validation error in submitPreAppSurvey', undefined, { details: parsed.error });
             return res.status(400).json({
                 message: 'Invalid input',
                 errors: parsed.error.errors,
@@ -168,7 +166,6 @@ class PreAppSurveyController {
                 data: savedSurvey,
             });
         } catch (e) {
-            logger.error('Error saving pre-app survey', e as Error);
             return res.status(500).json({ message: 'Internal server error' });
         }
     }
@@ -177,7 +174,6 @@ class PreAppSurveyController {
     public async updateParameters(req: Request, res: Response) {
         const parsed = UpdateParamsSchema.safeParse(req.body);
         if (!parsed.success) {
-            logger.error('Zod validation error in updateParameters', undefined, { details: parsed.error });
             return res.status(400).json({
                 message: 'Invalid input',
                 errors: parsed.error.errors,
@@ -269,7 +265,6 @@ class PreAppSurveyController {
                 data: updatedSurvey,
             });
         } catch (e) {
-            logger.error('Error updating parameters', e as Error);
             return res.status(500).json({ message: 'Internal server error' });
         }
     }
@@ -294,7 +289,6 @@ class PreAppSurveyController {
 
             return res.status(200).json(survey);
         } catch (e) {
-            logger.error('Error fetching pre-app survey', e as Error);
             return res.status(500).json({ message: 'Internal server error' });
         }
     }
@@ -309,7 +303,6 @@ class PreAppSurveyController {
 
             return res.status(200).json(surveys);
         } catch (e) {
-            logger.error('Error fetching all pre-app surveys', e as Error);
             return res.status(500).json({ message: 'Internal server error' });
         }
     }
@@ -335,11 +328,9 @@ class PreAppSurveyController {
                 deletedData: survey,
             });
         } catch (e) {
-            logger.error('Error deleting pre-app survey', e as Error);
             return res.status(500).json({ message: 'Internal server error' });
         }
     }
 }
 
 export default new PreAppSurveyController();
-

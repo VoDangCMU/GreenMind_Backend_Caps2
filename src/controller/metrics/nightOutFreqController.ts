@@ -8,7 +8,6 @@ import { Metrics } from "../../entity/metrics";
 import { BehaviorFeedback } from "../../entity/behavior_feedback";
 import NUMBER from "../../config/schemas/Number";
 import TEXT from "../../config/schemas/Text";
-import { logger } from "../../infrastructure";
 import { verifySurveyAndSaveFeedback } from "../../utils/verifySurveyHelper";
 import { findMatchingModel } from "../../utils/modelMatcher";
 
@@ -63,11 +62,9 @@ class NightOutFreqController {
         try {
             const userId = req.user?.userId;
             if (!userId) {
-                logger.warn("Unauthorized access to getNightOutFreq");
                 return res.status(401).json({ error: "Unauthorized" });
             }
 
-            logger.info("getNightOutFreq called", { userId });
 
             // Tìm metric night_out_freq của user
             const metricRecord = await MetricsRepository.findOne({
@@ -78,7 +75,6 @@ class NightOutFreqController {
             });
 
             if (!metricRecord) {
-                logger.warn("No night_out_freq metric found for user", { userId });
                 return res.status(404).json({
                     error: "No night_out_freq metric found for this user"
                 });
@@ -93,7 +89,6 @@ class NightOutFreqController {
             });
 
             if (!user || !user.bigFive) {
-                logger.warn("User or big five data not found", { userId });
                 return res.status(404).json({
                     error: "User or big five data not found"
                 });
@@ -117,17 +112,10 @@ class NightOutFreqController {
                 reason: metricRecord.metadata?.reason || null
             };
 
-            logger.info("Successfully retrieved night_out_freq metric", {
-                userId,
-                metric: response
-            });
 
             return res.status(200).json(response);
 
         } catch (e) {
-            logger.error("Failed to get night_out_freq metric", e as Error, {
-                userId: req.user?.userId
-            });
             return res.status(500).json({
                 error: "Failed to get night_out_freq metric",
                 details: e instanceof Error ? e.message : String(e),
@@ -139,18 +127,13 @@ class NightOutFreqController {
         try {
             const userId = req.user?.userId;
             if (!userId) {
-                logger.warn("Unauthorized access to countNightOut");
                 return res.status(401).json({ error: "Unauthorized" });
             }
 
-            logger.info("countNightOut called", { userId, body: req.body });
 
             // Validate request body
             const parsed = NightOutFreqRequestSchema.safeParse(req.body);
             if (!parsed.success) {
-                logger.warn("Invalid request parameters", {
-                    errors: parsed.error.errors
-                });
                 return res.status(400).json({
                     error: "Invalid parameters",
                     details: parsed.error.errors
@@ -166,7 +149,6 @@ class NightOutFreqController {
             });
 
             if (!user || !user.bigFive) {
-                logger.warn("User or BigFive not found", { userId });
                 return res.status(404).json({ error: "User or BigFive not found" });
             }
 
@@ -180,7 +162,6 @@ class NightOutFreqController {
             };
 
             // Call AI API
-            logger.info("Calling AI API for night_out_freq", { userId, payload: requestData });
 
             const aiResponse = await axios.post(AI_API_URL, requestData, {
                 headers: {
@@ -193,14 +174,12 @@ class NightOutFreqController {
             // Validate AI response
             const aiParsed = AIResponseSchema.safeParse(aiData);
             if (!aiParsed.success) {
-                logger.error("Invalid AI API response", new Error(JSON.stringify(aiParsed.error.errors)));
                 return res.status(500).json({
                     error: "Invalid response from AI service",
                     details: aiParsed.error.errors
                 });
             }
 
-            logger.info("AI API response received", { userId, metric: aiData.metric });
 
             // Update or create Metrics record
             let metricRecord = await MetricsRepository.findOne({
@@ -237,7 +216,6 @@ class NightOutFreqController {
             }
 
             await MetricsRepository.save(metricRecord);
-            logger.info("Metrics updated", { userId, metricId: metricRecord.id });
 
             // Save feedback to behavior_feedbacks table (không lưu oceanScore nữa)
             if (aiData.mechanismFeedback) {
@@ -260,7 +238,6 @@ class NightOutFreqController {
                 });
 
                 await BehaviorFeedbackRepository.save(behaviorFeedback);
-                logger.info("Behavior feedback saved", { userId, modelId, feedbackId: behaviorFeedback.id });
             }
 
             // Gọi verify-survey API với OCEAN score mới và lưu feedback
@@ -280,19 +257,12 @@ class NightOutFreqController {
 
         } catch (e) {
             if (axios.isAxiosError(e)) {
-                logger.error("AI API call failed", e, {
-                    userId: req.user?.userId,
-                    response: e.response?.data
-                });
                 return res.status(e.response?.status || 500).json({
                     error: "Failed to process night out frequency",
                     details: e.response?.data || e.message
                 });
             }
 
-            logger.error("Failed to count night out", e as Error, {
-                userId: req.user?.userId
-            });
             return res.status(500).json({
                 error: "Failed to count night out",
                 details: e instanceof Error ? e.message : String(e),

@@ -4,7 +4,6 @@ import AppDataSource from '../infrastructure/database';
 import { UserAnswers } from '../entity/user_answers';
 import { User } from '../entity/user';
 import { Questions } from '../entity/questions';
-import { logger } from '../infrastructure/logger';
 import { BigFive, BigFiveType } from '../entity/big_five';
 import { Feedback } from '../entity/behavior_feedback';
 import { Segment } from '../entity/segments';
@@ -41,7 +40,6 @@ const QuestionsRepository = AppDataSource.getRepository(Questions);
 function validateUserAnswersParams(req: Request, res: Response) {
     const parsed = UserAnswersSchema.safeParse(req.body);
     if (!parsed.success) {
-        logger.error('Zod validation error', undefined, { details: parsed.error });
         res.status(400).json(parsed.error);
         return null;
     }
@@ -51,7 +49,6 @@ function validateUserAnswersParams(req: Request, res: Response) {
 function validateUserAnswersUpdateParams(req: Request, res: Response) {
     const parsed = UserAnswersUpdateSchema.safeParse(req.body);
     if (!parsed.success) {
-        logger.error('Zod validation error', undefined, { details: parsed.error });
         res.status(400).json(parsed.error);
         return null;
     }
@@ -71,7 +68,6 @@ const submitSchema = z.object({
 function validateUserAnswersSubmitParams(req: Request, res: Response) {
     const parsed = submitSchema.safeParse(req.body);
     if (!parsed.success) {
-        logger.error('Zod validation error in submitUserAnswer', undefined, { details: parsed.error });
         res.status(400).json({
             message: 'Invalid input',
             errors: parsed.error.errors,
@@ -190,11 +186,9 @@ class UserAnswersController {
                 if (calculateOceanResponse.ok) {
                     const oceanResult = await calculateOceanResponse.json();
                     oceanScores = oceanResult.scores;
-                    logger.info('OCEAN scores calculated', { userId, scores: oceanScores });
 
                     // Check if oceanScores is valid before using
                     if (!oceanScores) {
-                        logger.error('OCEAN scores is null or undefined', undefined, { userId });
                         return res.status(500).json({ error: 'Failed to calculate OCEAN scores' });
                     }
 
@@ -305,7 +299,6 @@ class UserAnswersController {
 
                                     if (verifySurveyResponse.ok) {
                                         const verifyResult = await verifySurveyResponse.json();
-                                        logger.info('Survey verified for segment', { userId, segmentId: matchedSegment.id, result: verifyResult });
 
                                         // Save feedback with segmentId
                                         const feedback = feedbackRepo.create({
@@ -324,7 +317,6 @@ class UserAnswersController {
                                         await feedbackRepo.save(feedback);
                                     }
                                 } catch (verifyErr) {
-                                    logger.error('Error calling verify-survey API for segment', verifyErr as Error);
                                 }
 
                                 // Get all users in this segment
@@ -383,7 +375,6 @@ class UserAnswersController {
                                 if (groupOceanResponse.ok) {
                                     const groupResult = await groupOceanResponse.json();
                                     const groupScores = groupResult.group_ocean_score;
-                                    logger.info('Group OCEAN calculated', { segmentId: matchedSegment.id, scores: groupScores });
 
                                     // Update segment's BigFive
                                     let segmentBigFive = await bigFiveRepo.findOne({
@@ -413,11 +404,9 @@ class UserAnswersController {
                             }
                         }
                     } catch (groupErr) {
-                        logger.error('Error calculating group OCEAN', groupErr as Error);
                     }
                 }
             } catch (oceanErr) {
-                logger.error('Error calling calculate_ocean API', oceanErr as Error);
             }
 
             const response = {
@@ -436,7 +425,6 @@ class UserAnswersController {
             return res.status(200).json(response);
         } catch (err: any) {
             await queryRunner.rollbackTransaction();
-            logger.error('Error in submitUserAnswer', undefined, { details: err });
             return res.status(500).json({ message: 'Internal server error', error: err.message });
         } finally {
             await queryRunner.release();
@@ -486,7 +474,6 @@ class UserAnswersController {
             const savedUserAnswer = await UserAnswersRepository.save(userAnswer);
             return res.status(201).json(savedUserAnswer);
         } catch (e) {
-            logger.error('Error creating user answer', e as Error);
             res.status(500).json({ message: "Internal server error" });
             return;
         }
@@ -531,7 +518,6 @@ class UserAnswersController {
     public async getUserAnswersByUserId(req: Request, res: Response) {
         const parsed = UserIdSchema.safeParse(req.params);
         if (!parsed.success) {
-            logger.error('Zod validation error', undefined, { details: parsed.error });
             return res.status(400).json(parsed.error);
         }
 
@@ -604,7 +590,6 @@ class UserAnswersController {
                 answers: formattedAnswers
             });
         } catch (e) {
-            logger.error('Error fetching user answers by user ID', e as Error);
             res.status(500).json({ message: "Internal server error" });
             return;
         }
@@ -616,7 +601,6 @@ class UserAnswersController {
 
         const parsed = UserAnswersIdSchema.safeParse(req.params);
         if (!parsed.success) {
-            logger.error('Zod validation error', undefined, { details: parsed.error });
             return res.status(400).json(parsed.error);
         }
 
@@ -637,7 +621,6 @@ class UserAnswersController {
             const updatedUserAnswer = await UserAnswersRepository.save(existedUserAnswer);
             return res.status(200).json(updatedUserAnswer);
         } catch (e) {
-            logger.error('Error updating user answer', e as Error);
             res.status(500).json({ message: "Internal server error" });
             return;
         }
@@ -646,7 +629,6 @@ class UserAnswersController {
     public async deleteUserAnswer(req: Request, res: Response) {
         const parsed = UserAnswersIdSchema.safeParse(req.params);
         if (!parsed.success) {
-            logger.error('Zod validation error', undefined, { details: parsed.error });
             return res.status(400).json(parsed.error);
         }
 
@@ -664,7 +646,6 @@ class UserAnswersController {
             await UserAnswersRepository.delete({ userId, questionId });
             return res.status(200).json({ message: 'User answer deleted successfully', deletedData: userAnswer });
         } catch (e) {
-            logger.error('Error deleting user answer', e as Error);
             return res.status(500).json({ error: 'Database error occurred while deleting the user answer.' });
         }
     }
@@ -678,7 +659,6 @@ class UserAnswersController {
 
             return res.status(200).json(userAnswers);
         } catch (e) {
-            logger.error('Error fetching all user answers', e as Error);
             res.status(500).json({ message: "Internal server error" });
             return;
         }
@@ -700,7 +680,6 @@ class UserAnswersController {
 
             return res.status(200).json(userAnswers);
         } catch (e) {
-            logger.error('Error fetching user answers by question ID', e as Error);
             res.status(500).json({ message: "Internal server error" });
             return;
         }

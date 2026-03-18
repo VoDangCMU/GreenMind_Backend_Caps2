@@ -74,4 +74,3 @@ export class Invoice {
     @UpdateDateColumn({ type: 'timestamp' })
     updatedAt!: Date;
 }
-

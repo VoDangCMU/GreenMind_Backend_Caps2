@@ -25,4 +25,3 @@ const upload = multer({
 router.post("/", jwtAuthMiddleware, upload.single('file'), healthyFoodController.analyzeHealthyFood);
 
 export default router;
-

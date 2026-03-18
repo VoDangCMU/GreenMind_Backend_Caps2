@@ -1,9 +1,9 @@
 import axios from 'axios';
 import { JWTHelper } from './jwtHelper';
-import { getLogger } from '../infrastructure/logger';
 import AppDataSource from '../infrastructure/database';
 import { User } from '../entity/user';
 import { UsernameHelper } from './usernameHelper';
+
 
 export interface GoogleUserInfo {
     id: string;
@@ -23,7 +23,6 @@ export interface LoginResult {
 
 export class GoogleLoginHelper {
     private static readonly GOOGLE_API_URL = 'https://www.googleapis.com/oauth2/v1/userinfo';
-    private static logger = getLogger();
 
     public static async verifyGoogleToken(accessToken: string): Promise<GoogleUserInfo> {
         try {
@@ -39,7 +38,6 @@ export class GoogleLoginHelper {
 
             return response.data as GoogleUserInfo;
         } catch (error) {
-            this.logger.error('Google token verification failed', error as Error);
             throw new Error('Failed to verify Google token');
         }
     }
@@ -61,11 +59,6 @@ export class GoogleLoginHelper {
                 user.fullName = googleUserInfo.name;
                 user.updatedAt = new Date();
                 user = await userRepository.save(user);
-
-                this.logger.info('User updated from Google login', {
-                    userId: user.id,
-                    email: user.email
-                });
             } else {
                 // Generate unique username from Google name
                 const username = await UsernameHelper.generateUniqueUsername(googleUserInfo.name);
@@ -81,17 +74,10 @@ export class GoogleLoginHelper {
                 });
 
                 user = await userRepository.save(user);
-
-                this.logger.info('New user created from Google login', {
-                    userId: user.id,
-                    username: user.username,
-                    email: user.email
-                });
             }
 
             return user;
         } catch (error) {
-            this.logger.error('Failed to create or update user from Google', error as Error);
             throw new Error('Failed to process user data');
         }
     }
@@ -115,10 +101,6 @@ export class GoogleLoginHelper {
 
             const tokenPair = JWTHelper.createTokenPair(payload);
 
-            this.logger.info('JWT tokens created for Google login', {
-                userId: user.id,
-            });
-
             return {
                 user: {
                     id: user.id,
@@ -130,7 +112,6 @@ export class GoogleLoginHelper {
                 refreshToken: tokenPair.refreshToken
             };
         } catch (error) {
-            this.logger.error('Google login process failed', error as Error);
             throw error;
         }
     }

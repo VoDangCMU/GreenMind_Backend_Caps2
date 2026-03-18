@@ -44,11 +44,13 @@ jobs:
 
           docker network create green-mindmap-net 2>/dev/null || true
 
+          sed -i 's/^export //g' .env
+
           docker run -d \
             --name green-mind-backend \
             --restart unless-stopped \
             --env-file .env \
-            --network green-mindmap-net \
+            --network green-mind-network \
             -p 3000:3000 \
             iamqbao/green_mind_backend:latest
 

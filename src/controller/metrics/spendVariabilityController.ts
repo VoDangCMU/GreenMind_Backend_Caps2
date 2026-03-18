@@ -6,7 +6,6 @@ import { Metrics } from '../../entity/metrics';
 import { User } from '../../entity/user';
 import { BehaviorFeedback } from '../../entity/behavior_feedback';
 import { AvgDailySpend } from '../../entity/daily_spend';
-import { logger } from '../../infrastructure';
 import axios from 'axios';
 import { verifySurveyAndSaveFeedback } from '../../utils/verifySurveyHelper';
 import { findMatchingModel } from '../../utils/modelMatcher';
@@ -70,11 +69,9 @@ class SpendVariabilityController {
         try {
             const userId = req.user?.userId;
             if (!userId) {
-                logger.warn("Unauthorized access to getSpendVariability");
                 return res.status(401).json({ error: "Unauthorized" });
             }
 
-            logger.info("getSpendVariability called", { userId });
 
             // Lấy ngày hiện tại
             const today = new Date();
@@ -91,10 +88,6 @@ class SpendVariabilityController {
 
             // Kiểm tra nếu đã có metric và last_day là hôm nay
             if (metricRecord && metricRecord.metadata && metricRecord.metadata.last_day === todayString) {
-                logger.info("Spend variability is up to date, returning existing metric", {
-                    userId,
-                    last_day: todayString
-                });
 
                 // Lấy big_five hiện tại của user
                 const user = await UserRepository.findOne({
@@ -105,7 +98,6 @@ class SpendVariabilityController {
                 });
 
                 if (!user || !user.bigFive) {
-                    logger.warn("User or big five data not found", { userId });
                     return res.status(404).json({
                         error: "User or big five data not found"
                     });
@@ -131,7 +123,6 @@ class SpendVariabilityController {
             }
 
             // Nếu chưa có hoặc cần cập nhật
-            logger.info("Updating spend variability", { userId });
 
             // Lấy 7 ngày gần nhất của daily_spend
             const dailySpendRecords = await DailySpendRepository.find({
@@ -145,7 +136,6 @@ class SpendVariabilityController {
             });
 
             if (dailySpendRecords.length === 0) {
-                logger.warn("No daily spend records found for user", { userId });
                 return res.status(404).json({
                     error: "No daily spend records found for this user"
                 });
@@ -157,11 +147,6 @@ class SpendVariabilityController {
             // Xác định direction: so sánh ngày đầu và ngày cuối
             const direction = dailySpendArray[0] < dailySpendArray[dailySpendArray.length - 1] ? "up" : "down";
 
-            logger.info("Daily spend array prepared", {
-                userId,
-                dailySpendArray,
-                direction
-            });
 
             // Lấy big_five của user
             const user = await UserRepository.findOne({
@@ -172,7 +157,6 @@ class SpendVariabilityController {
             });
 
             if (!user || !user.bigFive) {
-                logger.warn("User or big five data not found", { userId });
                 return res.status(404).json({
                     error: "User or big five data not found"
                 });
@@ -195,10 +179,6 @@ class SpendVariabilityController {
                 }
             };
 
-            logger.info("Calling spend variability API", {
-                userId,
-                payload: apiPayload
-            });
 
             const response = await axios.post(API_URL, apiPayload, {
                 headers: {
@@ -207,11 +187,6 @@ class SpendVariabilityController {
             });
 
             if (response.status !== 200) {
-                logger.error("API call failed", undefined, {
-                    userId,
-                    status: response.status,
-                    data: response.data
-                });
                 return res.status(500).json({
                     error: "Spend variability calculation failed",
                     details: response.data
@@ -221,10 +196,6 @@ class SpendVariabilityController {
             const apiResult = AnalyzeResponseSchema.safeParse(response.data);
 
             if (!apiResult.success) {
-                logger.error("Invalid API response", undefined, {
-                    userId,
-                    errors: apiResult.error.errors
-                });
                 return res.status(500).json({
                     error: "Invalid response from API",
                     details: apiResult.error.errors
@@ -259,10 +230,6 @@ class SpendVariabilityController {
                 };
                 await MetricsRepository.save(metricRecord);
 
-                logger.info("Updated spend variability metric", {
-                    userId,
-                    last_day: todayString
-                });
             } else {
                 metricRecord = MetricsRepository.create({
                     userId: userId,
@@ -279,10 +246,6 @@ class SpendVariabilityController {
                 });
                 await MetricsRepository.save(metricRecord);
 
-                logger.info("Created spend variability metric", {
-                    userId,
-                    last_day: todayString
-                });
             }
 
             // Trả về response
@@ -296,17 +259,10 @@ class SpendVariabilityController {
                 new_ocean_score: result.new_ocean_score
             };
 
-            logger.info("Successfully retrieved spend variability metric", {
-                userId,
-                metric: finalResponse
-            });
 
             return res.status(200).json(finalResponse);
 
         } catch (e) {
-            logger.error("Failed to get spend variability", e as Error, {
-                userId: req.user?.userId
-            });
             return res.status(500).json({
                 error: "Failed to get spend variability",
                 details: e instanceof Error ? e.message : String(e),
@@ -318,21 +274,13 @@ class SpendVariabilityController {
         try {
             const userId = req.user?.userId;
             if (!userId) {
-                logger.warn("Unauthorized access to updateSpendVariability");
                 return res.status(401).json({ error: "Unauthorized" });
             }
 
-            logger.info("updateSpendVariability called", {
-                userId,
-                body: req.body
-            });
 
             // Validate request body
             const parsed = SpendVariabilityRequestSchema.safeParse(req.body);
             if (!parsed.success) {
-                logger.warn("Invalid request parameters", {
-                    errors: parsed.error.errors
-                });
                 return res.status(400).json({
                     error: "Invalid parameters",
                     details: parsed.error.errors
@@ -342,10 +290,6 @@ class SpendVariabilityController {
             const requestData = parsed.data;
 
             // Call external API with the exact request format
-            logger.info("Calling spend variability API", {
-                userId,
-                payload: requestData
-            });
 
             const apiResponse = await axios.post(API_URL, requestData, {
                 headers: {
@@ -354,11 +298,6 @@ class SpendVariabilityController {
             });
 
             if (apiResponse.status !== 200) {
-                logger.error("API call failed", undefined, {
-                    userId,
-                    status: apiResponse.status,
-                    data: apiResponse.data
-                });
                 return res.status(apiResponse.status).json({
                     error: "Spend variability calculation failed",
                     details: apiResponse.data
@@ -368,10 +307,6 @@ class SpendVariabilityController {
             const apiResult = AnalyzeResponseSchema.safeParse(apiResponse.data);
 
             if (!apiResult.success) {
-                logger.error("Invalid API response", undefined, {
-                    userId,
-                    errors: apiResult.error.errors
-                });
                 return res.status(500).json({
                     error: "Invalid response from API",
                     details: apiResult.error.errors
@@ -387,7 +322,6 @@ class SpendVariabilityController {
             });
 
             if (!user) {
-                logger.warn("User not found", { userId });
                 return res.status(404).json({ error: "User not found" });
             }
 
@@ -415,10 +349,6 @@ class SpendVariabilityController {
 
             await BigFiveRepository.save(bigFive);
 
-            logger.info("BigFive updated", {
-                userId,
-                newScores: result.new_ocean_score
-            });
 
             // Update or create Metrics record
             let metricRecord = await MetricsRepository.findOne({
@@ -468,10 +398,6 @@ class SpendVariabilityController {
 
             await MetricsRepository.save(metricRecord);
 
-            logger.info("Metrics updated", {
-                userId,
-                type: "spend_variability"
-            });
 
             // Save feedback to behavior_feedbacks table (không lưu oceanScore nữa)
             if (result.mechanismFeedback) {
@@ -494,7 +420,6 @@ class SpendVariabilityController {
                 });
 
                 await BehaviorFeedbackRepository.save(behaviorFeedback);
-                logger.info("Behavior feedback saved", { userId, modelId, feedbackId: behaviorFeedback.id });
             }
 
             // Gọi verify-survey API với OCEAN score mới và lưu feedback
@@ -514,19 +439,12 @@ class SpendVariabilityController {
 
         } catch (e) {
             if (axios.isAxiosError(e)) {
-                logger.error("API call failed", e, {
-                    userId: req.user?.userId,
-                    response: e.response?.data
-                });
                 return res.status(e.response?.status || 500).json({
                     error: "Failed to calculate spend variability",
                     details: e.response?.data || e.message
                 });
             }
 
-            logger.error("Failed to update spend variability", e as Error, {
-                userId: req.user?.userId
-            });
             return res.status(500).json({
                 error: "Failed to update spend variability",
                 details: e instanceof Error ? e.message : String(e),

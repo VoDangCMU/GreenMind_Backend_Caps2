@@ -2,7 +2,6 @@ import { Request, Response } from "express";
 import AppDataSource from "../infrastructure/database";
 import { BehaviorFeedback } from "../entity/behavior_feedback";
 import { User } from "../entity/user";
-import { logger } from "../infrastructure";
 
 const BehaviorFeedbackRepository = AppDataSource.getRepository(BehaviorFeedback);
 const UserRepository = AppDataSource.getRepository(User);
@@ -12,11 +11,9 @@ class BehaviorFeedbackController {
         try {
             const userId = req.user?.userId;
             if (!userId) {
-                logger.warn("Unauthorized access to getAllBehaviorFeedback");
                 return res.status(401).json({ error: "Unauthorized" });
             }
 
-            logger.info("getAllBehaviorFeedback called", { userId });
 
             // Get all behavior feedbacks (not filtered by user)
             const feedbacks = await BehaviorFeedbackRepository.find({
@@ -25,10 +22,6 @@ class BehaviorFeedbackController {
                 }
             });
 
-            logger.info("Successfully retrieved behavior feedbacks", {
-                userId,
-                count: feedbacks.length
-            });
 
             return res.status(200).json({
                 success: true,
@@ -38,9 +31,6 @@ class BehaviorFeedbackController {
             });
 
         } catch (e) {
-            logger.error("Failed to get behavior feedbacks", e as Error, {
-                userId: req.user?.userId
-            });
             return res.status(500).json({
                 success: false,
                 error: "Failed to get behavior feedbacks",
@@ -58,11 +48,9 @@ class BehaviorFeedbackController {
             const { userId } = req.params;
 
             if (!userId) {
-                logger.warn("Missing userId parameter");
                 return res.status(400).json({ error: "userId is required" });
             }
 
-            logger.info("getMechanismFeedbacksByUser called", { userId });
 
             // Lấy thông tin user
             const user = await UserRepository.findOne({
@@ -96,10 +84,6 @@ class BehaviorFeedbackController {
                 }
             }
 
-            logger.info("Successfully retrieved mechanism feedbacks for user", {
-                userId,
-                count: mechanismFeedbacks.length
-            });
 
             return res.status(200).json({
                 success: true,
@@ -117,9 +101,6 @@ class BehaviorFeedbackController {
             });
 
         } catch (e) {
-            logger.error("Failed to get mechanism feedbacks", e as Error, {
-                userId: req.params.userId
-            });
             return res.status(500).json({
                 success: false,
                 error: "Failed to get mechanism feedbacks",
@@ -137,11 +118,9 @@ class BehaviorFeedbackController {
             const { modelId } = req.params;
 
             if (!modelId) {
-                logger.warn("Missing modelId parameter");
                 return res.status(400).json({ error: "modelId is required" });
             }
 
-            logger.info("getMechanismFeedbacksByModel called", { modelId });
 
             const feedbacks = await BehaviorFeedbackRepository.find({
                 where: { modelId },
@@ -181,10 +160,6 @@ class BehaviorFeedbackController {
                     };
                 });
 
-            logger.info("Successfully retrieved mechanism feedbacks for model", {
-                modelId,
-                count: mechanismFeedbacks.length
-            });
 
             return res.status(200).json({
                 success: true,
@@ -194,9 +169,6 @@ class BehaviorFeedbackController {
             });
 
         } catch (e) {
-            logger.error("Failed to get mechanism feedbacks by model", e as Error, {
-                modelId: req.params.modelId
-            });
             return res.status(500).json({
                 success: false,
                 error: "Failed to get mechanism feedbacks",
@@ -211,7 +183,6 @@ class BehaviorFeedbackController {
      */
     public getMechanismFeedbacksAllUsers = async (req: Request, res: Response) => {
         try {
-            logger.info("getMechanismFeedbacksAllUsers called");
 
             const feedbacks = await BehaviorFeedbackRepository.find({
                 relations: ['user'],
@@ -292,9 +263,6 @@ class BehaviorFeedbackController {
                     });
                 });
 
-            logger.info("Successfully retrieved mechanism feedbacks for all users", {
-                count: result.length
-            });
 
             return res.status(200).json({
                 success: true,
@@ -304,7 +272,6 @@ class BehaviorFeedbackController {
             });
 
         } catch (e) {
-            logger.error("Failed to get mechanism feedbacks for all users", e as Error);
             return res.status(500).json({
                 success: false,
                 error: "Failed to get mechanism feedbacks",

@@ -5,7 +5,6 @@ import {Questions} from '../entity/questions';
 import {QuestionOptions} from '../entity/question_options';
 import {Template} from '../entity/templates';
 import {Models} from '../entity/models';
-import {logger} from '../infrastructure';
 
 const QuestionSchema = z.object({
     filled_prompt: z.string().min(1, "Question text (filled_prompt) is required"),
@@ -60,7 +59,6 @@ const ModelsRepository = AppDataSource.getRepository(Models);
 function validateQuestionParams(req: Request, res: Response) {
     const parsed = QuestionSchema.safeParse(req.body);
     if (!parsed.success) {
-        logger.error('Question validation error', undefined, { details: parsed.error });
         res.status(400).json({
             message: "Validation error",
             errors: parsed.error.format()
@@ -73,7 +71,6 @@ function validateQuestionParams(req: Request, res: Response) {
 function validateQuestionUpdateParams(req: Request, res: Response) {
     const parsed = QuestionUpdateSchema.safeParse(req.body);
     if (!parsed.success) {
-        logger.error('Question update validation error', undefined, { details: parsed.error });
         res.status(400).json({
             message: "Validation error",
             errors: parsed.error.format()
@@ -86,7 +83,6 @@ function validateQuestionUpdateParams(req: Request, res: Response) {
 function validateCreateQuestionsParams(req: Request, res: Response) {
     const parsed = CreateQuestionsRequestSchema.safeParse(req.body);
     if (!parsed.success) {
-        logger.error('Create questions validation error', undefined, { details: parsed.error });
         res.status(400).json({
             message: "Validation error",
             errors: parsed.error.format()
@@ -153,7 +149,6 @@ export class QuestionsController {
                 data: savedQuestion
             });
         } catch (e) {
-            logger.error('Error creating question', e as Error);
             return res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -316,7 +311,6 @@ export class QuestionsController {
                         });
 
                         savedQuestions.push(questionWithOptions);
-                        logger.info(`Question created by user ${userId} with trait: ${trait}, modelId: ${model?.id || 'none'}, templateId: ${templateIdToUse}, createdAt: ${batchCreatedAt.toISOString()}`);
                     } else {
                         // Exact duplicate question exists, skip
                         savedQuestions.push(existedQuestion);
@@ -324,7 +318,6 @@ export class QuestionsController {
                     }
                 } catch (e) {
                     errors.push(`Question ${i + 1} (${questionData.id}): ${(e as Error).message}`);
-                    logger.error(`Error processing question ${questionData.id}`, e as Error);
                 }
             }
 
@@ -350,7 +343,6 @@ export class QuestionsController {
 
             return res.status(200).json(response);
         } catch (e) {
-            logger.error("Error creating questions", e as Error);
             return res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -369,7 +361,6 @@ export class QuestionsController {
                 count: questions.length
             });
         } catch (e) {
-            logger.error('Error fetching questions', e as Error);
             return res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -378,7 +369,6 @@ export class QuestionsController {
     public async GetQuestionById(req: Request, res: Response) {
         const parsed = QuestionIdSchema.safeParse(req.params);
         if (!parsed.success) {
-            logger.error('Question ID validation error', undefined, { details: parsed.error });
             return res.status(400).json({
                 message: "Invalid question ID format",
                 errors: parsed.error.format()
@@ -402,7 +392,6 @@ export class QuestionsController {
                 data: question
             });
         } catch (e) {
-            logger.error('Error fetching question', e as Error);
             return res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -411,7 +400,6 @@ export class QuestionsController {
     public async UpdateQuestion(req: Request, res: Response) {
         const parsed = QuestionIdSchema.safeParse(req.params);
         if (!parsed.success) {
-            logger.error('Question ID validation error', undefined, { details: parsed.error });
             return res.status(400).json({
                 message: "Invalid question ID format",
                 errors: parsed.error.format()
@@ -458,7 +446,6 @@ export class QuestionsController {
                 data: updatedQuestion
             });
         } catch (e) {
-            logger.error('Error updating question', e as Error);
             return res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -467,7 +454,6 @@ export class QuestionsController {
     public async DeleteQuestion(req: Request, res: Response) {
         const parsed = QuestionIdSchema.safeParse(req.params);
         if (!parsed.success) {
-            logger.error('Question ID validation error', undefined, { details: parsed.error });
             return res.status(400).json({
                 message: "Invalid question ID format",
                 errors: parsed.error.format()
@@ -494,7 +480,6 @@ export class QuestionsController {
                 data: question
             });
         } catch (e) {
-            logger.error('Error deleting question', e as Error);
             return res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -519,7 +504,6 @@ export class QuestionsController {
                 count: questions.length
             });
         } catch (e) {
-            logger.error('Error fetching questions by template', e as Error);
             return res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -574,7 +558,6 @@ export class QuestionsController {
                 batchCreatedAt: latestCreatedAt
             });
         } catch (e) {
-            logger.error('Error fetching questions by owner', e as Error);
             return res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -814,7 +797,6 @@ export class QuestionsController {
                     const defaultOptions = questionType ? generateDefaultOptions(questionType) : [];
                     if (defaultOptions.length > 0) {
                         options = defaultOptions;
-                        logger.warn(`Generated default options for question ${question.id} with type ${questionType}`);
                     }
                 }
 
@@ -869,7 +851,6 @@ export class QuestionsController {
                 }
             });
         } catch (e) {
-            logger.error('Error fetching survey questions', e as Error);
             return res.status(500).json({ message: "Internal server error" });
         }
     }

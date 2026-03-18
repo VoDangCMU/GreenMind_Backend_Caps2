@@ -4,7 +4,6 @@ import AppDataSource from "../infrastructure/database";
 import { Models } from "../entity/models";
 import { Behavior } from "../entity/behaviors";
 import { BigFive, BigFiveType } from "../entity/big_five";
-import { logger } from "../infrastructure/logger";
 
 // Population context schema
 const PopulationSchema = z.object({
@@ -65,7 +64,6 @@ const createBehaviorModel = async (req: Request, res: Response): Promise<void> =
                 description: `Behavior: ${validatedData.behavior}`,
             });
             behaviorEntity = await behaviorRepository.save(behaviorEntity);
-            logger.info(`Created new behavior with ID: ${behaviorEntity.id}`);
         }
 
         // 2. Create the model record
@@ -84,7 +82,6 @@ const createBehaviorModel = async (req: Request, res: Response): Promise<void> =
         });
 
         const savedModel = await modelRepository.save(newModel);
-        logger.info(`Model created successfully with ID: ${savedModel.id}`);
 
         // 3. Create BigFive record for the model with default values
         const bigFive = bigFiveRepository.create({
@@ -117,7 +114,6 @@ const createBehaviorModel = async (req: Request, res: Response): Promise<void> =
         }
 
         const savedBigFive = await bigFiveRepository.save(bigFive);
-        logger.info(`BigFive created for model with ID: ${savedBigFive.id}`);
 
         await queryRunner.commitTransaction();
 
@@ -132,7 +128,6 @@ const createBehaviorModel = async (req: Request, res: Response): Promise<void> =
         });
     } catch (error) {
         await queryRunner.rollbackTransaction();
-        logger.error("Error creating behavior model:", error as Error);
 
         if (error instanceof z.ZodError) {
             res.status(400).json({
@@ -169,7 +164,6 @@ const createModel = async (req: Request, res: Response): Promise<void> => {
 
         const savedModel = await modelRepository.save(newModel);
 
-        logger.info(`Model created successfully with ID: ${savedModel.id}`);
         res.status(201).json({
             success: true,
             message: "Model created successfully",
@@ -205,7 +199,6 @@ const getAllModels = async (req: Request, res: Response): Promise<void> => {
             data: models,
         });
     } catch (error) {
-        logger.error("Error retrieving models:");
         res.status(500).json({
             success: false,
             message: "Internal server error",
@@ -249,7 +242,6 @@ const getModelById = async (req: Request, res: Response): Promise<void> => {
             },
         });
     } catch (error) {
-        logger.error("Error retrieving model:", error as Error);
         res.status(500).json({
             success: false,
             message: "Internal server error",

@@ -7,32 +7,16 @@ import { Locations } from "../entity/locations";
 import { JWTHelper } from "../utils/jwtHelper";
 import { GoogleLoginHelper } from "../utils/googleLoginHelper";
 import { BitmapHelper } from "../utils/bitmapHelper";
-import { getLogger } from "../infrastructure/logger";
 import { UsernameHelper } from "../utils/usernameHelper";
 import { BigFive, BigFiveType } from "../entity/big_five";
 
 class UserController {
     public RegisterWithEmail: RequestHandler = async (req: Request, res: Response) => {
-        const logger = getLogger();
         const startTime = Date.now();
         const { email, password, confirm_password, full_name, date_of_birth, location, gender, region } = req.body;
 
-        logger.info("User registration attempt", {
-            email: email?.substring(0, 3) + "***",
-            ip: req.ip,
-            userAgent: req.get('User-Agent')
-        });
 
         if (!email || !password || !full_name || !date_of_birth || !location || !gender) {
-            logger.warn("Registration failed - missing required fields", {
-                email: email ? "provided" : "missing",
-                password: password ? "provided" : "missing",
-                fullName: full_name ? "provided" : "missing",
-                dateOfBirth: date_of_birth ? "provided" : "missing",
-                location: location ? "provided" : "missing",
-                gender: gender ? "provided" : "missing",
-                region: region ? "provided" : "missing"
-            });
             res.status(400).json({
                 message: "Email, password, full name, date of birth, gender and location are required"
             });
@@ -48,9 +32,6 @@ class UserController {
             });
 
             if (existingUser) {
-                logger.warn("Registration failed - email already exists", {
-                    email: email?.substring(0, 3) + "***"
-                });
                 res.status(400).json({ message: "Email already exists" });
                 return;
             }
@@ -63,10 +44,6 @@ class UserController {
             // Parse date of birth
             const parsedDateOfBirth = new Date(date_of_birth);
             if (isNaN(parsedDateOfBirth.getTime())) {
-                logger.warn("Registration failed - invalid date of birth", {
-                    email: email?.substring(0, 3) + "***",
-                    dateOfBirth: date_of_birth
-                });
                 res.status(400).json({ message: "Invalid date of birth format" });
                 return;
             }
@@ -135,11 +112,6 @@ class UserController {
             });
 
             const duration = Date.now() - startTime;
-            logger.info("User registration successful", {
-                userId: savedUser.id,
-                email: email?.substring(0, 3) + "***",
-                duration
-            });
 
             res.status(200).json({
                 message: "Register successful",
@@ -160,31 +132,17 @@ class UserController {
             return;
         } catch (error) {
             const duration = Date.now() - startTime;
-            logger.error("Register error", error as Error, {
-                email: email?.substring(0, 3) + "***",
-                duration
-            });
             res.status(500).json({ message: "Internal server error" });
             return;
         }
     }
 
     public LoginWithEmail: RequestHandler = async (req: Request, res: Response) => {
-        const logger = getLogger();
         const startTime = Date.now();
         const { email, password } = req.body;
 
-        logger.info("User login attempt", {
-            email: email?.substring(0, 3) + "***",
-            ip: req.ip,
-            userAgent: req.get('User-Agent')
-        });
 
         if (!email || !password) {
-            logger.warn("Login failed - missing credentials", {
-                email: email ? "provided" : "missing",
-                password: password ? "provided" : "missing"
-            });
             return res.status(400).json({ message: "Email and password are required" });
         }
 
@@ -199,20 +157,12 @@ class UserController {
 
             // ✅ Check user existence and password presence first
             if (!user || !user.password) {
-                logger.warn("Login failed - invalid credentials", {
-                    email: email?.substring(0, 3) + "***",
-                    duration
-                });
                 return res.status(400).json({ message: "Invalid email or password" });
             }
 
             // ✅ Compare password safely
             const isMatch = await bcrypt.compare(password, user.password);
             if (!isMatch) {
-                logger.warn("Login failed - invalid credentials", {
-                    email: email?.substring(0, 3) + "***",
-                    duration
-                });
                 return res.status(400).json({ message: "Invalid email or password" });
             }
 
@@ -248,11 +198,6 @@ class UserController {
                 maxAge: 1000 * 60 * 60 * 24 * 7
             });
 
-            logger.info("User login successful", {
-                userId: user.id,
-                email: email?.substring(0, 3) + "***",
-                duration
-            });
 
             return res.status(200).json({
                 message: "Login successful",
@@ -271,27 +216,16 @@ class UserController {
 
         } catch (error) {
             const duration = Date.now() - startTime;
-            logger.error("Login error", error as Error, {
-                email: email?.substring(0, 3) + "***",
-                duration
-            });
             return res.status(500).json({ message: "Internal server error" });
         }
     };
 
     public LoginWithGoogle: RequestHandler = async (req: Request, res: Response) => {
-        const logger = getLogger();
         const startTime = Date.now();
         const { token, device_id } = req.body;
 
-        logger.info("User Google login attempt", {
-            ip: req.ip,
-            userAgent: req.get('User-Agent'),
-            deviceId: device_id || 'unknown'
-        });
 
         if (!token) {
-            logger.warn("Google login failed - missing token");
             res.status(400).json({ message: "Google token is required" });
             return;
         }
@@ -314,11 +248,6 @@ class UserController {
                 maxAge: 1000 * 60 * 60 * 24 * 7 // 7 days
             });
 
-            logger.info("Google login successful", {
-                userId: result.user.id,
-                email: result.user.email?.substring(0, 3) + "***",
-                duration
-            });
 
             res.status(200).json({
                 message: "Google login successful",
@@ -330,9 +259,6 @@ class UserController {
 
         } catch (error) {
             const duration = Date.now() - startTime;
-            logger.error("Google login error", error as Error, {
-                duration
-            });
 
             if ((error as Error).message.includes('verify Google token')) {
                 res.status(401).json({ message: "Invalid Google token" });
@@ -346,11 +272,9 @@ class UserController {
     }
 
     public GetProfile: RequestHandler = async (req: Request, res: Response) => {
-        const logger = getLogger();
         const startTime = Date.now();
 
         if (!req.user || !req.user.userId) {
-            logger.warn("GetProfile failed - missing user in request");
             res.status(401).json({ message: "Unauthorized" });
             return;
         }
@@ -364,10 +288,6 @@ class UserController {
             const duration = Date.now() - startTime;
 
             if (!user) {
-                logger.warn("GetProfile failed - user not found", {
-                    userId: req.user.userId,
-                    duration
-                });
                 res.status(404).json({ message: "User not found" });
                 return;
             }
@@ -384,10 +304,6 @@ class UserController {
                 }
             }
 
-            logger.info("GetProfile successful", {
-                userId: user.id,
-                duration
-            });
 
             res.status(200).json({
                 id: user.id,
@@ -407,21 +323,15 @@ class UserController {
 
         } catch (error) {
             const duration = Date.now() - startTime;
-            logger.error("GetProfile error", error as Error, {
-                userId: req.user.userId,
-                duration
-            });
             res.status(500).json({ message: "Internal server error" });
             return;
         }
     }
 
     public Logout: RequestHandler = async (req: Request, res: Response) => {
-        const logger = getLogger();
         const startTime = Date.now();
 
         if (!req.user || !req.user.userId) {
-            logger.warn("Logout failed - missing user in request");
             res.status(401).json({ message: "Unauthorized" });
             return;
         }
@@ -440,10 +350,6 @@ class UserController {
                 // Blacklist token in Redis with 7 day TTL
                 await BitmapHelper.blacklistToken(token, 7 * 24 * 60 * 60 * 1000);
 
-                logger.info("Token blacklisted via Redis", {
-                    userId: req.user.userId,
-                    tokenLength: token.length
-                });
             }
 
             // Clear cookies
@@ -460,20 +366,12 @@ class UserController {
             });
 
             const duration = Date.now() - startTime;
-            logger.info("User logout successful", {
-                userId: req.user.userId,
-                duration
-            });
 
             res.status(200).json({ message: "Logout successful" });
             return;
 
         } catch (error) {
             const duration = Date.now() - startTime;
-            logger.error("Logout error", error as Error, {
-                userId: req.user.userId,
-                duration
-            });
             res.status(500).json({ message: "Internal server error" });
             return;
         }
@@ -512,12 +410,10 @@ class UserController {
     }
 
     public DeleteUserById: RequestHandler = async (req: Request, res: Response) => {
-        const logger = getLogger();
         const startTime = Date.now();
         const userIdToDelete = req.params.id;
 
         if (!req.user || !req.user.userId) {
-            logger.warn("DeleteUser failed - missing user in request");
             res.status(401).json({ message: "Unauthorized" });
             return;
         }
@@ -539,13 +435,11 @@ class UserController {
             await userRepository.delete({ id: userIdToDelete });
 
             const duration = Date.now() - startTime;
-            logger.info("DeleteUser successful", { deletedUserId: userIdToDelete, performedBy: req.user.userId, duration });
 
             res.status(200).json({ success: true, message: "User deleted" });
             return;
         } catch (error) {
             const duration = Date.now() - startTime;
-            logger.error("DeleteUser error", error as Error, { performedBy: req.user?.userId, duration });
             res.status(500).json({ message: "Internal server error" });
             return;
         }

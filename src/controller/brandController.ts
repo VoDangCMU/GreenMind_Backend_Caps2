@@ -3,7 +3,6 @@ import AppDataSource from "../infrastructure/database";
 import { Brand } from "../entity/brands";
 import { Metrics } from "../entity/metrics";
 import { BigFive } from "../entity/big_five";
-import { getLogger } from "../infrastructure/logger";
 import axios from "axios";
 
 interface BrandNoveltyResponse {
@@ -29,7 +28,6 @@ class BrandController {
      * Body: { brand: string | string[] }
      */
     public postBrand: RequestHandler = async (req: Request, res: Response) => {
-        const logger = getLogger();
         const userId = req.user?.userId;
 
         if (!userId) {
@@ -71,7 +69,6 @@ class BrandController {
                     latestBrand.brands = [...latestBrand.brands, ...brandsToAdd];
                     updatedBrand = await brandRepository.save(latestBrand);
                     shouldCreateNewRecord = false;
-                    logger.info("Brands added to existing record", { userId, daysDiff });
                 } else {
                     // Create new record
                     shouldCreateNewRecord = true;
@@ -86,7 +83,6 @@ class BrandController {
                     startDay: currentDate
                 });
                 updatedBrand = await brandRepository.save(newBrand);
-                logger.info("New brand record created", { userId });
             }
 
             // Check if we need to process brand novelty (if >= 7 days have passed)
@@ -127,7 +123,6 @@ class BrandController {
                 data: updatedBrand!
             });
         } catch (error) {
-            logger.error("Error posting brand", error as Error);
             res.status(500).json({ message: "Internal server error" });
         }
     };
@@ -140,7 +135,6 @@ class BrandController {
         brandsPrev: string[],
         brandsNow: string[]
     ): Promise<BrandNoveltyResponse | null> {
-        const logger = getLogger();
 
         try {
             const metricsRepository = AppDataSource.getRepository(Metrics);
@@ -164,7 +158,6 @@ class BrandController {
             });
 
             if (!bigFive) {
-                logger.warn("BigFive not found for user", { userId });
                 return null;
             }
 
@@ -221,7 +214,6 @@ class BrandController {
 
             await bigFiveRepository.save(bigFive);
 
-            logger.info("Brand novelty processed", { userId, metric: result.metric });
 
             // Return exact format as API response
             return {
@@ -234,7 +226,6 @@ class BrandController {
                 new_ocean_score: result.new_ocean_score
             };
         } catch (error) {
-            logger.error("Error processing brand novelty", error as Error);
             return null;
         }
     }

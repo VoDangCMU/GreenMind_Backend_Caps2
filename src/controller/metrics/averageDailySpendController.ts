@@ -5,7 +5,6 @@ import { AvgDailySpend } from "../../entity/daily_spend";
 import { User } from "../../entity/user";
 import { BigFive } from "../../entity/big_five";
 import { BehaviorFeedback } from "../../entity/behavior_feedback";
-import { logger } from "../../infrastructure";
 import axios from "axios";
 import { z } from "zod";
 import { verifySurveyAndSaveFeedback } from "../../utils/verifySurveyHelper";
@@ -69,11 +68,9 @@ class AverageDailySpendController {
         try {
             const userId = req.user?.userId;
             if (!userId) {
-                logger.warn("Unauthorized access to getAvgDailySpend");
                 return res.status(401).json({ error: "Unauthorized" });
             }
 
-            logger.info("getAvgDailySpend called", { userId });
 
             // Tìm metric avg_daily_spend của user
             const metricRecord = await MetricsRepo.findOne({
@@ -84,7 +81,6 @@ class AverageDailySpendController {
             });
 
             if (!metricRecord) {
-                logger.warn("No avg_daily_spend metric found for user", { userId });
                 return res.status(404).json({
                     error: "No avg_daily_spend metric found for this user"
                 });
@@ -99,7 +95,6 @@ class AverageDailySpendController {
             });
 
             if (!user || !user.bigFive) {
-                logger.warn("User or big five data not found", { userId });
                 return res.status(404).json({
                     error: "User or big five data not found"
                 });
@@ -123,17 +118,10 @@ class AverageDailySpendController {
                 reason: metricRecord.metadata?.reason || null
             };
 
-            logger.info("Successfully retrieved avg_daily_spend metric", {
-                userId,
-                metric: response
-            });
 
             return res.status(200).json(response);
 
         } catch (e) {
-            logger.error("Failed to get avg_daily_spend metric", e as Error, {
-                userId: req.user?.userId
-            });
             return res.status(500).json({
                 error: "Failed to get avg_daily_spend metric",
                 details: e instanceof Error ? e.message : String(e),
@@ -145,18 +133,13 @@ class AverageDailySpendController {
         try {
             const userId = req.user?.userId;
             if (!userId) {
-                logger.warn("Unauthorized access to updateAvgSpend");
                 return res.status(401).json({ error: "Unauthorized" });
             }
 
-            logger.info("updateAvgSpend called", { userId, body: req.body });
 
             // Validate request body
             const parsed = AnalyzeRequestSchema.safeParse(req.body);
             if (!parsed.success) {
-                logger.warn("Invalid request parameters", {
-                    errors: parsed.error.errors
-                });
                 return res.status(400).json({
                     error: "Invalid parameters",
                     details: parsed.error.errors
@@ -174,7 +157,6 @@ class AverageDailySpendController {
             });
 
             if (!user) {
-                logger.warn("User not found", { userId });
                 return res.status(404).json({
                     error: "User not found"
                 });
@@ -182,7 +164,6 @@ class AverageDailySpendController {
 
             // Kiểm tra big_five
             if (!user.bigFive) {
-                logger.warn("User does not have big five data", { userId });
                 return res.status(404).json({
                     error: "User does not have big five data"
                 });
@@ -198,10 +179,6 @@ class AverageDailySpendController {
             };
 
             // Call external API with the exact request format
-            logger.info("Calling avg daily spend API", {
-                userId,
-                payload: requestData
-            });
 
             const apiResponse = await axios.post(API_URL, requestData, {
                 headers: {
@@ -210,11 +187,6 @@ class AverageDailySpendController {
             });
 
             if (apiResponse.status !== 200) {
-                logger.error("API call failed", undefined, {
-                    userId,
-                    status: apiResponse.status,
-                    data: apiResponse.data
-                });
                 return res.status(apiResponse.status).json({
                     error: "Avg daily spend calculation failed",
                     details: apiResponse.data
@@ -224,10 +196,6 @@ class AverageDailySpendController {
             const apiResult = AnalyzeResponseSchema.safeParse(apiResponse.data);
 
             if (!apiResult.success) {
-                logger.error("Invalid API response", undefined, {
-                    userId,
-                    errors: apiResult.error.errors
-                });
                 return res.status(500).json({
                     error: "Invalid response from API",
                     details: apiResult.error.errors
@@ -251,10 +219,6 @@ class AverageDailySpendController {
 
             await BigFiveRepo.save(bigFive);
 
-            logger.info("BigFive updated", {
-                userId,
-                newScores: result.new_ocean_score
-            });
 
             // Update or create Metrics record
             let metricRecord = await MetricsRepo.findOne({
@@ -298,10 +262,6 @@ class AverageDailySpendController {
 
             await MetricsRepo.save(metricRecord);
 
-            logger.info("Metrics updated", {
-                userId,
-                type: "avg_daily_spend"
-            });
 
             // Save feedback to behavior_feedbacks table
             if (result.mechanismFeedback) {
@@ -319,7 +279,6 @@ class AverageDailySpendController {
                 });
 
                 await BehaviorFeedbackRepo.save(behaviorFeedback);
-                logger.info("Behavior feedback saved", { userId, feedbackId: behaviorFeedback.id });
             }
 
             // Gọi verify-survey API với OCEAN score mới và lưu feedback
@@ -338,19 +297,12 @@ class AverageDailySpendController {
 
         } catch (e) {
             if (axios.isAxiosError(e)) {
-                logger.error("API call failed", e, {
-                    userId: req.user?.userId,
-                    response: e.response?.data
-                });
                 return res.status(e.response?.status || 500).json({
                     error: "Failed to calculate avg daily spend",
                     details: e.response?.data || e.message
                 });
             }
 
-            logger.error("Failed to update avg daily spend", e as Error, {
-                userId: req.user?.userId
-            });
             return res.status(500).json({
                 error: "Failed to update avg daily spend",
                 details: e instanceof Error ? e.message : String(e),
@@ -362,11 +314,9 @@ class AverageDailySpendController {
         try {
             const userId = req.user?.userId;
             if (!userId) {
-                logger.warn("Unauthorized access to updateAvgSpendFromHistory");
                 return res.status(401).json({ error: "Unauthorized" });
             }
 
-            logger.info("updateAvgSpendFromHistory called", { userId });
 
             // Get user
             const user = await UserRepo.findOne({
@@ -377,7 +327,6 @@ class AverageDailySpendController {
             });
 
             if (!user) {
-                logger.warn("User not found", { userId });
                 return res.status(404).json({
                     error: "User not found"
                 });
@@ -394,7 +343,6 @@ class AverageDailySpendController {
             });
 
             if (dailySpendRecords.length === 0) {
-                logger.info("No daily spend records for user", { userId });
                 return res.status(404).json({
                     error: "No daily spend records found for this user"
                 });
@@ -422,14 +370,9 @@ class AverageDailySpendController {
 
                 if (lastDaySpend === latestDate) {
                     // Ngày trùng, không cần cập nhật
-                    logger.info("Last day spend matches latest date, no update needed", {
-                        userId,
-                        date: latestDate
-                    });
 
                     // Return current metric data in proper format
                     if (!user.bigFive) {
-                        logger.warn("User big five data not found", { userId });
                         return res.status(404).json({
                             error: "User big five data not found"
                         });
@@ -470,7 +413,6 @@ class AverageDailySpendController {
 
             // Kiểm tra big_five
             if (!user.bigFive) {
-                logger.warn("User does not have big five data", { userId });
                 return res.status(404).json({
                     error: "User does not have big five data"
                 });
@@ -504,10 +446,6 @@ class AverageDailySpendController {
                 }
             };
 
-            logger.info("Calling external API", {
-                userId,
-                payload: apiPayload
-            });
 
             const response = await axios.post(API_URL, apiPayload, {
                 headers: {
@@ -516,11 +454,6 @@ class AverageDailySpendController {
             });
 
             if (response.status !== 200) {
-                logger.error("API call failed", undefined, {
-                    userId,
-                    status: response.status,
-                    data: response.data
-                });
                 return res.status(response.status).json({
                     error: "API call failed",
                     details: response.data
@@ -530,10 +463,6 @@ class AverageDailySpendController {
             const parsed = AnalyzeResponseSchema.safeParse(response.data);
 
             if (!parsed.success) {
-                logger.error("Invalid API response", undefined, {
-                    userId,
-                    errors: parsed.error.errors
-                });
                 return res.status(500).json({
                     error: "Invalid API response",
                     details: parsed.error.errors
@@ -554,10 +483,6 @@ class AverageDailySpendController {
             user.bigFive = newBigFive;
             await UserRepo.save(user);
 
-            logger.info("BigFive updated with new ocean scores", {
-                userId,
-                newScores: apiResult.new_ocean_score
-            });
 
             // Update or create Metrics record
             if (metricRecord) {
@@ -576,12 +501,6 @@ class AverageDailySpendController {
                 };
                 await MetricsRepo.save(metricRecord);
 
-                logger.info("Updated avg spend metric", {
-                    userId,
-                    avgSpend,
-                    totalDays,
-                    lastDaySpend: latestDate
-                });
             } else {
                 metricRecord = MetricsRepo.create({
                     userId: userId,
@@ -602,12 +521,6 @@ class AverageDailySpendController {
                 });
                 await MetricsRepo.save(metricRecord);
 
-                logger.info("Created avg spend metric", {
-                    userId,
-                    avgSpend,
-                    totalDays,
-                    lastDaySpend: latestDate
-                });
             }
 
             // Save feedback to behavior_feedbacks table (không lưu oceanScore nữa)
@@ -625,7 +538,6 @@ class AverageDailySpendController {
                 });
 
                 await BehaviorFeedbackRepo.save(behaviorFeedback);
-                logger.info("Behavior feedback saved", { userId, feedbackId: behaviorFeedback.id });
             }
             // Gọi verify-survey API với OCEAN score mới và lưu feedback
             // (Helper sẽ cập nhật BigFive cho user và segment)
@@ -653,19 +565,12 @@ class AverageDailySpendController {
 
         } catch (e) {
             if (axios.isAxiosError(e)) {
-                logger.error("AI API call failed", e, {
-                    userId: req.user?.userId,
-                    response: e.response?.data
-                });
                 return res.status(e.response?.status || 500).json({
                     error: "Failed to process avg daily spend",
                     details: e.response?.data || e.message
                 });
             }
 
-            logger.error("Failed to update avg spend", e as Error, {
-                userId: req.user?.userId
-            });
             return res.status(500).json({
                 error: "Failed to update avg spend",
                 details: e instanceof Error ? e.message : String(e),

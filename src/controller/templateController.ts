@@ -3,7 +3,6 @@ import { z } from "zod";
 import AppDataSource from "../infrastructure/database";
 import { Template } from "../entity/templates";
 import { Models } from "../entity/models";
-import { logger } from "../infrastructure/logger";
 
 const TemplateAnswerSchema = z.object({
     type: z.string(),
@@ -61,7 +60,6 @@ const ModelsRepository = AppDataSource.getRepository(Models);
 function validateTemplateParams(req: Request, res: Response) {
     const parsed = TemplateSchema.safeParse(req.body);
     if (!parsed.success) {
-        logger.error("Zod validation error", undefined, { details: parsed.error });
         res.status(400).json({
             message: "Validation error",
             errors: parsed.error.format(),
@@ -74,7 +72,6 @@ function validateTemplateParams(req: Request, res: Response) {
 function validateTemplateIdParams(req: Request, res: Response) {
     const parsed = TemplateIdSchema.safeParse(req.params);
     if (!parsed.success) {
-        logger.error("Zod validation error", undefined, { details: parsed.error });
         res.status(400).json({
             message: "Validation error",
             errors: parsed.error.format(),
@@ -87,7 +84,6 @@ function validateTemplateIdParams(req: Request, res: Response) {
 function validateCreateTemplatesParams(req: Request, res: Response) {
     const parsed = CreateTemplatesRequestSchema.safeParse(req.body);
     if (!parsed.success) {
-        logger.error("Zod validation error", undefined, { details: parsed.error });
         res.status(400).json({
             message: "Validation error",
             errors: parsed.error.format(),
@@ -152,7 +148,6 @@ class TemplateController {
 
             return res.status(200).json({ createdTemplate });
         } catch (e) {
-            logger.error("Error creating template", e as Error);
             return res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -232,7 +227,6 @@ class TemplateController {
                     }
                 } catch (e) {
                     errors.push(`Template ${i + 1} (${templateData.id}): ${(e as Error).message}`);
-                    logger.error(`Error processing template ${templateData.id}`, e as Error);
                 }
             }
 
@@ -256,7 +250,6 @@ class TemplateController {
 
             return res.status(200).json(response);
         } catch (e) {
-            logger.error("Error creating templates", e as Error);
             return res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -267,7 +260,6 @@ class TemplateController {
 
             return res.status(200).json({ templates });
         } catch (e) {
-            logger.error("Error fetching templates", e as Error);
             return res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -289,7 +281,6 @@ class TemplateController {
 
             return res.status(200).json({ existedTemplate });
         } catch (e) {
-            logger.error("Error fetching template by ID", e as Error);
             return res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -352,7 +343,6 @@ class TemplateController {
 
             return res.status(200).json({ updatedTemplate });
         } catch (e) {
-            logger.error("Error updating template", e as Error);
             return res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -376,7 +366,6 @@ class TemplateController {
 
             return res.status(200).json({existedTemplate });
         } catch (e) {
-            logger.error("Error deleting template", e as Error);
             return res.status(500).json({ message: "Internal server error" });
         }
     }

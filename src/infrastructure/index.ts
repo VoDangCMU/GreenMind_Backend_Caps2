@@ -2,19 +2,14 @@ import { redis } from "./cache";
 import AppDataSource from "./database";
 import { DataSource } from "typeorm";
 import Redis from "ioredis";
-import { logger, LoggerClient } from "./logger";
-
-export { logger };
 
 export class Infrastructure {
     database: DataSource;
     cache: Redis;
-    logger: LoggerClient;
 
-    constructor(dependencies: { database: DataSource; cache: Redis; logger: LoggerClient }) {
+    constructor(dependencies: { database: DataSource; cache: Redis }) {
         this.database = dependencies.database;
         this.cache = dependencies.cache;
-        this.logger = dependencies.logger;
     }
 }
 
@@ -22,12 +17,11 @@ export async function initInfrastructure() {
     // Initialize the database connection
     if (!AppDataSource.isInitialized) {
         await AppDataSource.initialize();
-        logger.info("Database connection initialized successfully");
+        console.log("Database connection initialized successfully");
     }
 
     return new Infrastructure({
         database: AppDataSource,
         cache: redis,
-        logger: logger,
     });
 }

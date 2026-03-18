@@ -1,7 +1,6 @@
 import { Request, Response, RequestHandler } from "express";
 import AppDataSource from "../infrastructure/database";
 import { Invoice } from "../entity/invoice";
-import { getLogger } from "../infrastructure/logger";
 import axios from "axios";
 import FormData from "form-data";
 
@@ -37,7 +36,6 @@ class OCRController {
      * Body: multipart/form-data with file field
      */
     public processOCR: RequestHandler = async (req: Request, res: Response) => {
-        const logger = getLogger();
         const userId = req.user?.userId;
 
         if (!userId) {
@@ -70,7 +68,6 @@ class OCRController {
             );
 
             const ocrResult = response.data;
-            logger.info("OCR processed successfully", { userId, vendor: ocrResult.vendor.name });
 
             // Save invoice to database
             const invoiceRepository = AppDataSource.getRepository(Invoice);
@@ -93,12 +90,10 @@ class OCRController {
             });
 
             await invoiceRepository.save(invoice);
-            logger.info("Invoice saved successfully", { userId, invoiceId: invoice.id });
 
             // Return the same format as API response
             res.status(200).json(ocrResult);
         } catch (error) {
-            logger.error("Error processing OCR", error as Error);
 
             if (axios.isAxiosError(error)) {
                 res.status(error.response?.status || 500).json({
@@ -116,7 +111,6 @@ class OCRController {
      * GET /api/invoices
      */
     public getInvoices: RequestHandler = async (req: Request, res: Response) => {
-        const logger = getLogger();
         const userId = req.user?.userId;
 
         if (!userId) {
@@ -131,7 +125,6 @@ class OCRController {
                 order: { createdAt: 'DESC' }
             });
 
-            logger.info("Invoices retrieved successfully", { userId, count: invoices.length });
 
             // Transform invoices to match the OCR response format
             const formattedInvoices = invoices.map(invoice => ({
@@ -164,7 +157,6 @@ class OCRController {
 
             res.status(200).json(formattedInvoices);
         } catch (error) {
-            logger.error("Error retrieving invoices", error as Error);
             res.status(500).json({ message: "Internal server error" });
         }
     };

@@ -5,7 +5,6 @@ import { Models } from "../entity/models";
 import { User } from "../entity/user";
 import { Segment } from "../entity/segments";
 import { BigFive, BigFiveType } from "../entity/big_five";
-import { logger } from "../infrastructure";
 
 const VERIFY_SURVEY_API_URL = "https://ai-greenmind.khoav4.com/verify-survey";
 
@@ -196,14 +195,6 @@ async function findOrCreateSegment(
             referenceId: segment.id
         });
         await BigFiveRepository.save(bigFive);
-
-        logger.info("Created new segment with BigFive", {
-            segmentId: segment.id,
-            modelId,
-            ageRange: userAge,
-            gender: normalizedGender,
-            location: userLocation
-        });
     }
 
     return segment;
@@ -244,11 +235,6 @@ async function updateSegmentBigFive(
     }
 
     await BigFiveRepository.save(bigFive);
-
-    logger.info("Updated segment BigFive", {
-        segmentId,
-        oceanScore
-    });
 }
 
 /**
@@ -267,7 +253,6 @@ async function updateUserBigFive(
     });
 
     if (!user) {
-        logger.warn("User not found for BigFive update", { userId });
         return;
     }
 
@@ -303,11 +288,6 @@ async function updateUserBigFive(
     }
 
     await BigFiveRepository.save(bigFive);
-
-    logger.info("Updated user BigFive", {
-        userId,
-        oceanScore
-    });
 }
 
 /**
@@ -340,7 +320,6 @@ export async function verifySurveyAndSaveFeedback(
         });
 
         if (!user) {
-            logger.warn("User not found for verify survey", { userId, metricName });
             return null;
         }
 
@@ -353,17 +332,9 @@ export async function verifySurveyAndSaveFeedback(
         const changedTrait = findChangedOceanTrait(previousOceanScore || null, oceanScore);
 
         if (!changedTrait) {
-            logger.warn("No OCEAN trait changed", { userId, metricName });
             return null;
         }
 
-        logger.info("Found changed OCEAN trait", {
-            userId,
-            metricName,
-            changedTrait,
-            previousOceanScore,
-            newOceanScore: oceanScore
-        });
 
         // Tìm model phù hợp với user info và OCEAN trait thay đổi
         const matchingModel = await findMatchingModelByOceanTrait(
@@ -374,23 +345,9 @@ export async function verifySurveyAndSaveFeedback(
         );
 
         if (!matchingModel) {
-            logger.warn("No matching model found for OCEAN trait", {
-                userId,
-                metricName,
-                changedTrait,
-                userAge,
-                userGender,
-                userLocation
-            });
             return null;
         }
 
-        logger.info("Found matching model", {
-            userId,
-            metricName,
-            modelId: matchingModel.id,
-            modelOcean: matchingModel.ocean
-        });
 
         // Tìm hoặc tạo Segment
         const segment = await findOrCreateSegment(
@@ -421,14 +378,6 @@ export async function verifySurveyAndSaveFeedback(
             survey_result: oceanScore
         };
 
-        logger.info("Calling verify-survey API after metric update", {
-            userId,
-            metricName,
-            modelId: matchingModel.id,
-            segmentId: segment.id,
-            oceanScore
-        });
-
         // Gọi API verify-survey
         const response = await axios.post(
             VERIFY_SURVEY_API_URL,
@@ -446,16 +395,6 @@ export async function verifySurveyAndSaveFeedback(
         const calculatedDeviation = Math.abs(verifyResult.expected - verifyResult.actual);
         const calculatedEngagement = 1 - calculatedDeviation;
 
-        logger.info("Verify survey completed", {
-            userId,
-            metricName,
-            modelId: verifyResult.model_id,
-            segmentId: segment.id,
-            deviation: calculatedDeviation,
-            engagement: calculatedEngagement,
-            match: verifyResult.match
-        });
-
         // Lưu feedback vào database với segmentId
         const feedback = FeedbackRepository.create({
             type: 'survey_verify',
@@ -472,12 +411,6 @@ export async function verifySurveyAndSaveFeedback(
         });
 
         await FeedbackRepository.save(feedback);
-        logger.info("Feedback saved to segment after metric update", {
-            userId,
-            metricName,
-            feedbackId: feedback.id,
-            segmentId: segment.id
-        });
 
         // Return kết quả với deviation và engagement đã tính
         return {
@@ -487,10 +420,7 @@ export async function verifySurveyAndSaveFeedback(
         };
 
     } catch (error) {
-        logger.error("Error calling verify-survey after metric update", error as Error, {
-            userId,
-            metricName
-        });
+        console.error("Error calling verify-survey after metric update", error);
         return null;
     }
 }
