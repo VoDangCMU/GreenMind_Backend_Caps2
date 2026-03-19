@@ -13,7 +13,7 @@ import { BigFive, BigFiveType } from "../entity/big_five";
 class UserController {
     public RegisterWithEmail: RequestHandler = async (req: Request, res: Response) => {
         const startTime = Date.now();
-        const { email, password, confirm_password, full_name, date_of_birth, location, gender, region } = req.body;
+        const { email, password, confirm_password, full_name, date_of_birth, location, gender, region, role } = req.body;
 
 
         if (!email || !password || !full_name || !date_of_birth || !location || !gender) {
@@ -51,6 +51,7 @@ class UserController {
             if (gender.toLowerCase() !== 'male' && gender.toLowerCase() !== 'female') {
                 return res.status(400).json({ message: "Gender must be either 'male' or 'female'" });
             }
+
             const newUser = userRepository.create({
                 email,
                 password: hashedPassword,
@@ -60,7 +61,7 @@ class UserController {
                 location: location,
                 region: region,
                 gender: gender.toLowerCase(),
-                role: 'user'
+                role: role || 'user'
             });
 
             const savedUser = await userRepository.save(newUser);
