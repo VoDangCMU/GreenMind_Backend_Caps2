@@ -1,11 +1,11 @@
-import {Request, Response} from 'express';
-import {z} from 'zod';
+import { Request, Response } from 'express';
+import { z } from 'zod';
 import AppDataSource from '../infrastructure/database';
-import {Locations} from '../entity/locations';
-import {User} from '../entity/user';
+import { Locations } from '../entity/locations';
+import { User } from '../entity/user';
 import TEXT from "../config/schemas/Text";
 import NUMBER from "../config/schemas/Number";
-import {Between} from "typeorm";
+import { Between } from "typeorm";
 
 const LocationSchema = z.object({
     latitude: NUMBER,
@@ -46,7 +46,7 @@ class LocationController {
         try {
             // Kiểm tra user có tồn tại không
             const existedUser = await UserRepository.findOne({
-                where: {id: userId}
+                where: { id: userId }
             });
 
             if (!existedUser) {
@@ -93,7 +93,7 @@ class LocationController {
 
         try {
             const location = await LocationRepository.findOne({
-                where: {id: locationId, userId: req.user.userId}
+                where: { id: locationId, userId: req.user.userId }
             });
 
             if (!location) {
@@ -133,7 +133,7 @@ class LocationController {
 
         try {
             const location = await LocationRepository.findOne({
-                where: {id: locationId, userId: req.user.userId}
+                where: { id: locationId, userId: req.user.userId }
             });
 
             if (!location) {
@@ -161,7 +161,7 @@ class LocationController {
 
         try {
             const location = await LocationRepository.findOne({
-                where: {id: locationId, userId: req.user.userId}
+                where: { id: locationId, userId: req.user.userId }
             });
 
             if (!location) {
@@ -180,31 +180,21 @@ class LocationController {
         }
     }
 
-    // Lấy vị trí mới nhất của user hiện tại
-    public async GetLocations (req: Request, res: Response) {
+    public async GetLocations(req: Request, res: Response) {
         if (!req.user || !req.user.userId) {
             return res.status(401).json({ message: "Unauthorized" });
         }
 
         try {
-            // Chỉ lấy location mới nhất
-            const location = await LocationRepository.findOne({
+            const locations = await LocationRepository.find({
                 where: { userId: req.user.userId },
                 order: {
                     createdAt: "DESC"
                 }
             });
-
-            if (!location) {
-                return res.status(404).json({
-                    message: "No location found for this user",
-                    data: null
-                });
-            }
-
             return res.status(200).json({
-                message: "Latest location retrieved successfully",
-                data: location
+                message: "Locations retrieved successfully",
+                data: locations
             });
         } catch (e) {
             return res.status(500).json({ message: "Internal server error" });
@@ -212,7 +202,7 @@ class LocationController {
     }
 
     // Lấy vị trí mới nhất của user (alias cho GetLocations)
-    public async GetLatestLocation (req: Request, res: Response) {
+    public async GetLatestLocation(req: Request, res: Response) {
         if (!req.user || !req.user.userId) {
             return res.status(401).json({ message: "Unauthorized" });
         }
@@ -240,7 +230,7 @@ class LocationController {
     }
 
     public async GetDistanceToday(req: Request, res: Response) {
-        if(!req.user || !req.user.userId) {
+        if (!req.user || !req.user.userId) {
             return res.status(401).json({ message: "Unauthorized" });
         }
 
@@ -262,7 +252,6 @@ class LocationController {
                 relations: {
                     user: true
                 }
-
             })
 
             if (locations.length === 0) {
@@ -270,8 +259,8 @@ class LocationController {
             }
 
             const totalDistance = locations.reduce((sum, location) => {
-                    return sum + (location.lengthToPreviousLocation || 0);
-                }, 0
+                return sum + (location.lengthToPreviousLocation || 0);
+            }, 0
             );
 
             return res.status(200).json({
@@ -285,6 +274,25 @@ class LocationController {
         } catch (e) {
             return res.status(500).json({ message: "Internal server error" });
 
+        }
+    }
+
+    public async deleteLocations(req: Request, res: Response) {
+        if (!req.user || !req.user.userId) {
+            return res.status(401).json({ message: "Unauthorized" });
+        }
+        try {
+            const deleteResult = await LocationRepository.remove(
+                await LocationRepository.find({
+                    where: { userId: req.user.userId }
+                })
+            );
+            return res.status(200).json({
+                message: "All locations deleted successfully",
+                data: deleteResult
+            });
+        } catch (e) {
+            return res.status(500).json({ message: "Internal server error" });
         }
     }
 }

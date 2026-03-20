@@ -20,4 +20,6 @@ router.put("/:id", locationController.updateLocationById);
 
 router.delete("/:id", locationController.deleteLocationById);
 
+router.delete("/", locationController.deleteLocations);
+
 export default router;

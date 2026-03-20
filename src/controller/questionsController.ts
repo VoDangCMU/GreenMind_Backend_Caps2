@@ -1,10 +1,10 @@
-import {Request, Response} from 'express';
-import {z} from 'zod';
+import { Request, Response } from 'express';
+import { z } from 'zod';
 import AppDataSource from '../infrastructure/database';
-import {Questions} from '../entity/questions';
-import {QuestionOptions} from '../entity/question_options';
-import {Template} from '../entity/templates';
-import {Models} from '../entity/models';
+import { Questions } from '../entity/questions';
+import { QuestionOptions } from '../entity/question_options';
+import { Template } from '../entity/templates';
+import { Models } from '../entity/models';
 
 const QuestionSchema = z.object({
     filled_prompt: z.string().min(1, "Question text (filled_prompt) is required"),

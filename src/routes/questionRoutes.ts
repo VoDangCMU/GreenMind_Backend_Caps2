@@ -1,8 +1,8 @@
-import {Router} from 'express';
+import { Router } from 'express';
 import controller from '../controller';
 import surveyVerifyController from '../controller/surveyVerifyController';
-import {jwtAuthMiddleware} from '../middlewares/jwtMiddleware';
-import {adminMiddleware, staffOrAdminMiddleware} from '../middlewares/adminMiddleware';
+import { jwtAuthMiddleware } from '../middlewares/jwtMiddleware';
+import { adminMiddleware, staffOrAdminMiddleware } from '../middlewares/adminMiddleware';
 
 const router = Router();
 
