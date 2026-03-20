@@ -1,9 +1,11 @@
 import express from "express";
+import swaggerUi from "swagger-ui-express";
 import { config } from "./config/env";
 import routes from "./routes";
 import { initInfrastructure } from "./infrastructure";
 import controller from "./controller";
 import { corsMiddleware, devCorsMiddleware } from "./middlewares/corsMiddleware";
+import swaggerSpec from "./config/swagger";
 
 async function startServer() {
     try {
@@ -20,6 +22,20 @@ async function startServer() {
 
         app.use(express.json());
         app.locals.controller = controller;
+
+        const swaggerOpts: swaggerUi.SwaggerUiOptions = {
+            customSiteTitle: 'GreenMind API Docs',
+            swaggerOptions: {
+                persistAuthorization: true,
+                displayRequestDuration: true,
+                filter: true,
+                tryItOutEnabled: true,
+            },
+        };
+
+        app.use('/', swaggerUi.serve);
+        app.get('/', swaggerUi.setup(swaggerSpec, swaggerOpts));
+
         app.use(routes);
 
         app.listen(config.app.port, () => {
