@@ -36,6 +36,14 @@ const envSchema = z.object({
         allowedDomains: z.string().optional(),
         globalDomain: z.string().optional(),
     }),
+
+    r2: z.object({
+        accountId: z.string(),
+        accessKeyId: z.string(),
+        secretAccessKey: z.string(),
+        bucket: z.string(),
+        publicUrl: z.string().optional(),
+    }),
 });
 
 const parsed = envSchema.safeParse({
@@ -66,6 +74,14 @@ const parsed = envSchema.safeParse({
     security: {
         allowedDomains: process.env.ALLOWED_DOMAINS,
         globalDomain: process.env.GLOBAL_DOMAIN,
+    },
+
+    r2: {
+        accountId: process.env.R2_ACCOUNT_ID,
+        accessKeyId: process.env.R2_ACCESS_KEY_ID,
+        secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+        bucket: process.env.R2_BUCKET,
+        publicUrl: process.env.R2_PUBLIC_URL,
     },
 });
 
