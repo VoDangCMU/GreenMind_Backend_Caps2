@@ -34,6 +34,9 @@ export class WasteReport {
     description?: string;
 
     @Column({ type: 'text', nullable: true })
+    imageKey?: string;
+
+    @Column({ type: 'text', nullable: true })
     imageUrl?: string;
 
     @Column({ type: 'decimal', precision: 10, scale: 7, nullable: true })

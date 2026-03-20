@@ -12,6 +12,7 @@ import {
 import {Locations} from "./locations";
 import {BigFive} from "./big_five";
 import {Segment} from "./segments";
+import {Role} from "./role";
 
 export enum UserRole {
     HOUSEHOLD = 'household',
@@ -54,6 +55,13 @@ export class User {
 
     @Column({type: 'varchar', length: 50, nullable: true, default: UserRole.USER})
     role!: string;
+
+    @Column({type: 'integer', nullable: true})
+    roleId?: number;
+
+    @ManyToOne(() => Role, role => role.users, {nullable: true, eager: false})
+    @JoinColumn({name: 'roleId'})
+    roleRef?: Role;
 
     @Column({type: 'uuid', nullable: true})
     householdId?: string;
