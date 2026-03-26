@@ -20,10 +20,12 @@ function run() {
         `ts-node ./node_modules/typeorm/cli.js migration:generate -d ${dataSourcePath} ${migrationFilePath}`,
         (error, stdout, stderr) => {
             if (error) {
-                console.error(stderr || error.message);
+                console.error(`Migration generation FAILED:\n${stderr || error.message}`);
+                process.exit(1);
                 return;
             }
             console.info(stdout);
+            console.info(`Migration '${migrationName}' generated successfully!`);
         }
     );
 }
