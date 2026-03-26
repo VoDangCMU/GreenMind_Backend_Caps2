@@ -1,154 +1,197 @@
 import { Request, Response, RequestHandler } from 'express';
 import AppDataSource from '../infrastructure/database';
-import { WasteReport, WasteReportStatus } from '../entity/waste_report';
-import { Household } from '../entity/household';
-import { getS3Url } from '../utils/s3Helper';
+import { WasteReport, WasteReportStatus, WasteType } from '../entity/waste_report';
+import { Ward } from '../entity/wards';
+
+async function generateReportCode(reportRepo: ReturnType<typeof AppDataSource.getRepository<WasteReport>>): Promise<string> {
+    const count = await reportRepo.count();
+    const seq = String(count + 1).padStart(3, '0');
+    return `RPT${seq}`;
+}
+
+async function findWardByLatLng(lat: number, lng: number): Promise<Ward | null> {
+    const wardRepo = AppDataSource.getRepository(Ward);
+    const wards = await wardRepo.find();
+    if (!wards.length) return null;
+
+    let nearest: Ward = wards[0];
+    let minDist = Infinity;
+    for (const ward of wards) {
+        const dist = Math.hypot(ward.lat - lat, ward.lng - lng);
+        if (dist < minDist) {
+            minDist = dist;
+            nearest = ward;
+        }
+    }
+    return nearest;
+}
+
+const VALID_WASTE_TYPES = Object.values(WasteType) as string[];
+const reportRepo = AppDataSource.getRepository(WasteReport);
 
 class WasteReportController {
-    /**
-     * POST /waste-reports
-     * Create a new waste report for a household.
-     */
     public createReport: RequestHandler = async (req: Request, res: Response) => {
         const userId = req.user?.userId;
-
         if (!userId) {
             res.status(401).json({ message: 'Unauthorized' });
             return;
         }
 
-        const { householdId, description, imageKey, lat, lng } = req.body;
+        const { wasteType, wasteKg, description, lat, lng, imageUrl } = req.body;
 
-        if (!householdId) {
-            res.status(400).json({ message: 'householdId is required' });
+        if (!wasteType || !VALID_WASTE_TYPES.includes(wasteType)) {
+            res.status(400).json({ message: `wasteType must be one of: ${VALID_WASTE_TYPES.join(', ')}` });
             return;
         }
 
-        const householdRepo = AppDataSource.getRepository(Household);
-        const household = await householdRepo.findOneBy({ id: householdId });
-
-        if (!household) {
-            res.status(404).json({ message: 'Household not found' });
+        if (lat === undefined || lat === null || lng === undefined || lng === null) {
+            res.status(400).json({ message: 'lat and lng are required' });
             return;
         }
 
-        const reportRepo = AppDataSource.getRepository(WasteReport);
-        const report = reportRepo.create({
-            householdId,
-            description,
-            imageKey: imageKey ?? undefined,
-            imageUrl: imageKey ? getS3Url(imageKey) : undefined,
-            lat: lat ?? undefined,
-            lng: lng ?? undefined,
+        const parsedLat = parseFloat(lat);
+        const parsedLng = parseFloat(lng);
+        if (isNaN(parsedLat) || isNaN(parsedLng)) {
+            res.status(400).json({ message: 'lat and lng must be valid numbers' });
+            return;
+        }
+
+        const ward = await findWardByLatLng(parsedLat, parsedLng);
+        if (!ward) {
+            res.status(400).json({ message: 'No ward found for the given location' });
+            return;
+        }
+
+        const code = await generateReportCode(reportRepo);
+
+        const newReport = reportRepo.create({
+            householdId: userId,
+            code,
+            wasteType: wasteType as WasteType,
+            wasteKg: wasteKg ?? undefined,
+            description: description ?? undefined,
+            lat: parsedLat,
+            lng: parsedLng,
+            imageUrl: imageUrl ?? undefined,
+            wardId: ward.id,
             status: WasteReportStatus.PENDING,
         });
 
-        const saved = await reportRepo.save(report);
-        res.status(201).json(saved);
+        const createdReport = await reportRepo.save(newReport);
+        res.status(200).json(createdReport);
     };
 
-    /**
-     * GET /waste-reports/household/:householdId
-     * List all reports belonging to a specific household.
-     */
-    public getByHousehold: RequestHandler = async (req: Request, res: Response) => {
+    public getMyReports: RequestHandler = async (req: Request, res: Response) => {
         const userId = req.user?.userId;
-
         if (!userId) {
             res.status(401).json({ message: 'Unauthorized' });
             return;
         }
 
-        const { householdId } = req.params;
-        const reportRepo = AppDataSource.getRepository(WasteReport);
+        const { status, page = '1', limit = '10' } = req.query as Record<string, string>;
+        const pageNum = Math.max(1, parseInt(page) || 1);
+        const limitNum = Math.max(1, parseInt(limit) || 10);
 
-        const reports = await reportRepo.find({
-            where: { householdId },
-            order: { createdAt: 'DESC' },
-        });
-
-        res.status(200).json(reports);
-    };
-
-    /**
-     * GET /waste-reports/urban-area/:urbanAreaId
-     * Aggregate all reports for all households in an urban area.
-     */
-    public getByUrbanArea: RequestHandler = async (req: Request, res: Response) => {
-        const userId = req.user?.userId;
-
-        if (!userId) {
-            res.status(401).json({ message: 'Unauthorized' });
-            return;
-        }
-
-        const { urbanAreaId } = req.params;
-
-        const reportRepo = AppDataSource.getRepository(WasteReport);
-
-        const reports = await reportRepo
+        const qb = reportRepo
             .createQueryBuilder('wr')
-            .innerJoin('wr.household', 'h')
-            .where('h.urbanAreaId = :urbanAreaId', { urbanAreaId })
+            .where('wr.householdId = :userId', { userId })
             .orderBy('wr.createdAt', 'DESC')
-            .getMany();
+            .skip((pageNum - 1) * limitNum)
+            .take(limitNum);
 
-        const byStatus = {
-            [WasteReportStatus.PENDING]: 0,
-            [WasteReportStatus.ASSIGNED]: 0,
-            [WasteReportStatus.RESOLVED]: 0,
-            [WasteReportStatus.REJECTED]: 0,
-        };
-
-        for (const r of reports) {
-            byStatus[r.status] = (byStatus[r.status] ?? 0) + 1;
+        if (status) {
+            qb.andWhere('wr.status = :status', { status });
         }
+
+        const [reports, total] = await qb.getManyAndCount();
 
         res.status(200).json({
-            urbanAreaId,
-            totalReports: reports.length,
-            byStatus,
-            reports,
+            data: reports.map(r => ({
+                id: r.id,
+                code: r.code,
+                wasteType: r.wasteType,
+                wasteKg: r.wasteKg,
+                status: r.status,
+                createdAt: r.createdAt,
+            })),
+            total,
         });
     };
 
-    /**
-     * PATCH /waste-reports/:id/status
-     * Update the status of a report. Also sets assignedCollectorId when ASSIGNED.
-     */
-    public updateStatus: RequestHandler = async (req: Request, res: Response) => {
+    public getReportById: RequestHandler = async (req: Request, res: Response) => {
         const userId = req.user?.userId;
-
         if (!userId) {
             res.status(401).json({ message: 'Unauthorized' });
             return;
         }
 
         const { id } = req.params;
-        const { status, assignedCollectorId } = req.body;
 
-        const validStatuses = Object.values(WasteReportStatus);
-        if (!status || !validStatuses.includes(status)) {
-            res.status(400).json({ message: `status must be one of: ${validStatuses.join(', ')}` });
-            return;
-        }
-
-        const reportRepo = AppDataSource.getRepository(WasteReport);
         const report = await reportRepo.findOneBy({ id });
-
         if (!report) {
             res.status(404).json({ message: 'Waste report not found' });
             return;
         }
 
-        report.status = status;
+        res.status(200).json(report);
+    };
 
-        if (status === WasteReportStatus.ASSIGNED && assignedCollectorId) {
-            report.assignedCollectorId = assignedCollectorId;
+    public updateReport: RequestHandler = async (req: Request, res: Response) => {
+        const userId = req.user?.userId;
+        if (!userId) {
+            res.status(401).json({ message: 'Unauthorized' });
+            return;
         }
 
-        const updated = await reportRepo.save(report);
-        res.status(200).json(updated);
+        const { id } = req.params;
+        const { wasteType, wasteKg, description } = req.body;
+
+        if (wasteType && !VALID_WASTE_TYPES.includes(wasteType)) {
+            res.status(400).json({ message: `wasteType must be one of: ${VALID_WASTE_TYPES.join(', ')}` });
+            return;
+        }
+
+        const report = await reportRepo.findOneBy({ id });
+        if (!report) {
+            res.status(404).json({ message: 'Waste report not found' });
+            return;
+        }
+
+        if (report.status !== WasteReportStatus.PENDING) {
+            res.status(400).json({ message: 'Cannot update waste report: status is not pending' });
+            return;
+        }
+
+        if (wasteType) report.wasteType = wasteType as WasteType;
+        if (wasteKg !== undefined) report.wasteKg = wasteKg;
+        if (description !== undefined) report.description = description;
+
+        const updatedReport = await reportRepo.save(report);
+        res.status(200).json(updatedReport);
+    };
+
+    public deleteReport: RequestHandler = async (req: Request, res: Response) => {
+        const userId = req.user?.userId;
+        if (!userId) {
+            res.status(401).json({ message: 'Unauthorized' });
+            return;
+        }
+
+        const { id } = req.params;
+
+        const report = await reportRepo.findOneBy({ id });
+        if (!report) {
+            res.status(404).json({ message: 'Waste report not found' });
+            return;
+        }
+
+        if (report.status !== WasteReportStatus.PENDING) {
+            res.status(400).json({ message: 'Cannot delete waste report: status is not pending' });
+            return;
+        }
+
+        await reportRepo.remove(report);
+        res.status(200).json(report);
     };
 }
 

@@ -23,6 +23,7 @@ import checkinRouter from "./checkinRoutes";
 import mediaRouter from "./mediaRoutes";
 import wasteReportRouter from "./wasteReportRoutes";
 import wasteCollectionRouter from "./wasteCollectionRoutes";
+import wardRouter from "./wardRoutes";
 const router = Router();
 
 router.use("/auth", userRoutes);
@@ -49,4 +50,5 @@ router.use("/checkins", checkinRouter);
 router.use("/media", mediaRouter);
 router.use("/waste-reports", wasteReportRouter);
 router.use("/waste-collections", wasteCollectionRouter);
+router.use("/wards", wardRouter);
 export default router;
