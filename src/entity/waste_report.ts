@@ -1,6 +1,5 @@
 import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, Index } from 'typeorm';
 import { User } from './user';
-import { Ward } from './wards';
 
 export const WASTE_REPORTS_TABLE_NAME = 'waste_reports';
 
@@ -18,13 +17,10 @@ export enum WasteType {
 }
 
 @Entity(WASTE_REPORTS_TABLE_NAME)
-@Index(['wardId', 'status'])
+@Index(['wardName', 'status'])
 export class WasteReport {
     @PrimaryGeneratedColumn('uuid')
     id!: string;
-
-    @Column({ type: 'uuid', nullable: true })
-    householdId?: string;
 
     @Column({ type: 'varchar', unique: true })
     code!: string;
@@ -54,8 +50,8 @@ export class WasteReport {
     wasteType!: WasteType;
 
     @Index()
-    @Column({ type: 'int' })
-    wardId!: number;
+    @Column({ type: 'varchar', length: 100 })
+    wardName!: string;
 
     @Index()
     @Column({
@@ -65,16 +61,20 @@ export class WasteReport {
     })
     status!: WasteReportStatus;
 
+    @Index()
+    @Column({ type: 'uuid', nullable: true })
+    reportedByUserId?: string;
+
+    @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
+    @JoinColumn({ name: 'reportedByUserId' })
+    reportedBy?: User;
+
     @Column({ type: 'uuid', nullable: true })
     assignedCollectorId?: string;
 
     @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
     @JoinColumn({ name: 'assignedCollectorId' })
     assignedCollector?: User;
-
-    @ManyToOne(() => Ward, (ward) => ward.reports, { onDelete: 'CASCADE' })
-    @JoinColumn({ name: 'wardId' })
-    ward!: Ward;
 
     @CreateDateColumn({ type: 'timestamp' })
     createdAt!: Date;
