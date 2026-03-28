@@ -4,9 +4,6 @@ import wasteReportController from '../controller/wasteReportController';
 
 const router = Router();
 
-router.all('/', jwtAuthMiddleware, (req: any, res: any) =>
-    res.status(400).json({ message: `reportId is required. Usage: ${req.method} /waste-reports/:id` })
-);
 
 router.post('/', jwtAuthMiddleware, wasteReportController.createReport);
 router.get('/my', jwtAuthMiddleware, wasteReportController.getMyReports);
