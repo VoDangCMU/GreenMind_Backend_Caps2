@@ -22,6 +22,8 @@ import healthyFoodRouter from "./healthyFoodRoutes";
 import checkinRouter from "./checkinRoutes";
 import mediaRouter from "./mediaRoutes";
 import wasteReportRouter from "./wasteReportRoutes";
+import wasteCollectionRouter from "./wasteCollectionRoutes";
+import householdRouter from "./householdRoutes";
 import wasteMonitoringRouter from "./wasteMonitoringRoutes";
 import wasteCollectorRouter from "./wasteCollectorRoutes";
 
@@ -50,6 +52,8 @@ router.use("/healthy-food-ratio", healthyFoodRouter);
 router.use("/checkins", checkinRouter);
 router.use("/media", mediaRouter);
 router.use("/waste-reports", wasteReportRouter);
+router.use("/waste-collections", wasteCollectionRouter);
+router.use("/households", householdRouter);
 router.use("/waste-monitoring", wasteMonitoringRouter);
 router.use("/waste-collector", wasteCollectorRouter);
 

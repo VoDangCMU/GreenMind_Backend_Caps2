@@ -22,6 +22,7 @@ import novelLocationRatioMetric from "./metrics/novelLocationRatioController";
 import publicTransitRatioMetric from "./metrics/publicTransitRatioController";
 import nightOutFreqMetric from "./metrics/nightOutFreqController";
 import checkin from "./checkinController";
+import household from "./householdController";
 import wasteReport from "./wasteReportController";
 export default {
     behavior,
@@ -46,5 +47,6 @@ export default {
     user,
     userAnswers,
     checkin,
+    household
     wasteReport,
 };
