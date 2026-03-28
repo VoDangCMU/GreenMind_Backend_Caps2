@@ -1,4 +1,4 @@
-import {Router} from "express";
+import { Router } from "express";
 import questionRouter from "../routes/questionRoutes";
 import questionSetRouter from "../routes/questionSetRoutes";
 import userRoutes from "./userRoutes";
@@ -23,6 +23,7 @@ import checkinRouter from "./checkinRoutes";
 import mediaRouter from "./mediaRoutes";
 import wasteReportRouter from "./wasteReportRoutes";
 import wasteCollectionRouter from "./wasteCollectionRoutes";
+import householdRouter from "./householdRoutes";
 const router = Router();
 
 router.use("/auth", userRoutes);
@@ -49,4 +50,5 @@ router.use("/checkins", checkinRouter);
 router.use("/media", mediaRouter);
 router.use("/waste-reports", wasteReportRouter);
 router.use("/waste-collections", wasteCollectionRouter);
+router.use("/households", householdRouter);
 export default router;
