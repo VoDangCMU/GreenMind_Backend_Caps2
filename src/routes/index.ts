@@ -24,6 +24,9 @@ import mediaRouter from "./mediaRoutes";
 import wasteReportRouter from "./wasteReportRoutes";
 import wasteCollectionRouter from "./wasteCollectionRoutes";
 import householdRouter from "./householdRoutes";
+import wasteMonitoringRouter from "./wasteMonitoringRoutes";
+import wasteCollectorRouter from "./wasteCollectorRoutes";
+
 const router = Router();
 
 router.use("/auth", userRoutes);
@@ -51,4 +54,7 @@ router.use("/media", mediaRouter);
 router.use("/waste-reports", wasteReportRouter);
 router.use("/waste-collections", wasteCollectionRouter);
 router.use("/households", householdRouter);
+router.use("/waste-monitoring", wasteMonitoringRouter);
+router.use("/waste-collector", wasteCollectorRouter);
+
 export default router;

@@ -23,6 +23,7 @@ import publicTransitRatioMetric from "./metrics/publicTransitRatioController";
 import nightOutFreqMetric from "./metrics/nightOutFreqController";
 import checkin from "./checkinController";
 import household from "./householdController";
+import wasteReport from "./wasteReportController";
 export default {
     behavior,
     behaviorFeedback,
@@ -47,4 +48,5 @@ export default {
     userAnswers,
     checkin,
     household
+    wasteReport,
 };

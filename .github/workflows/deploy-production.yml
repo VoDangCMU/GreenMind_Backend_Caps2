@@ -14,6 +14,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install Tailscale
+        run: |
+          curl -fsSL https://tailscale.com/install.sh | sh
+
+      - name: Start Tailscale and authenticate
+        run: |
+          sudo tailscaled &
+          sleep 3
+          sudo tailscale up --authkey ${{ secrets.TAILSCALE_AUTH_KEY }}
+          sleep 5
+
+          
       # -------------------------------
       # Install sshpass
       # -------------------------------
