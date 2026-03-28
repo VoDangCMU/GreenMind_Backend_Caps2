@@ -1,13 +1,15 @@
 import { Router } from 'express';
 import { jwtAuthMiddleware } from '../middlewares/jwtMiddleware';
 import wasteReportController from '../controller/wasteReportController';
-import { adminMiddleware } from '../middlewares/adminMiddleware';
 
 const router = Router();
 
+router.all('/', jwtAuthMiddleware, (req: any, res: any) =>
+    res.status(400).json({ message: `reportId is required. Usage: ${req.method} /waste-reports/:id` })
+);
+
 router.post('/', jwtAuthMiddleware, wasteReportController.createReport);
 router.get('/my', jwtAuthMiddleware, wasteReportController.getMyReports);
-router.get('/', jwtAuthMiddleware, adminMiddleware, wasteReportController.getAllReports);
 router.get('/:id', jwtAuthMiddleware, wasteReportController.getReportById);
 router.patch('/:id', jwtAuthMiddleware, wasteReportController.updateReport);
 router.delete('/:id', jwtAuthMiddleware, wasteReportController.deleteReport);

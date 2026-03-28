@@ -1,4 +1,4 @@
-import {Router} from "express";
+import { Router } from "express";
 import questionRouter from "../routes/questionRoutes";
 import questionSetRouter from "../routes/questionSetRoutes";
 import userRoutes from "./userRoutes";
@@ -22,7 +22,8 @@ import healthyFoodRouter from "./healthyFoodRoutes";
 import checkinRouter from "./checkinRoutes";
 import mediaRouter from "./mediaRoutes";
 import wasteReportRouter from "./wasteReportRoutes";
-import wasteCollectionRouter from "./wasteCollectionRoutes";
+import wasteMonitoringRouter from "./wasteMonitoringRoutes";
+import wasteCollectorRouter from "./wasteCollectorRoutes";
 
 const router = Router();
 
@@ -49,6 +50,7 @@ router.use("/healthy-food-ratio", healthyFoodRouter);
 router.use("/checkins", checkinRouter);
 router.use("/media", mediaRouter);
 router.use("/waste-reports", wasteReportRouter);
-router.use("/waste-collections", wasteCollectionRouter);
+router.use("/waste-monitoring", wasteMonitoringRouter);
+router.use("/waste-collector", wasteCollectorRouter);
 
 export default router;

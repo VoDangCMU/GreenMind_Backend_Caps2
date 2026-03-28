@@ -18,6 +18,7 @@ export enum WasteType {
 
 @Entity(WASTE_REPORTS_TABLE_NAME)
 @Index(['wardName', 'status'])
+@Index(['assignedCollectorId', 'status'])
 export class WasteReport {
     @PrimaryGeneratedColumn('uuid')
     id!: string;
@@ -61,7 +62,6 @@ export class WasteReport {
     })
     status!: WasteReportStatus;
 
-    @Index()
     @Column({ type: 'uuid', nullable: true })
     reportedByUserId?: string;
 
@@ -75,6 +75,9 @@ export class WasteReport {
     @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
     @JoinColumn({ name: 'assignedCollectorId' })
     assignedCollector?: User;
+
+    @Column({ type: 'text', default: '' })
+    imageEvidenceUrl!: string;
 
     @CreateDateColumn({ type: 'timestamp' })
     createdAt!: Date;

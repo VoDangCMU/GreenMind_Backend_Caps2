@@ -38,6 +38,19 @@ async function startServer() {
 
         app.use(routes);
 
+        // 404 — route không tồn tại → JSON thay vì HTML
+        app.use((req: express.Request, res: express.Response) => {
+            res.status(404).json({
+                message: `Cannot ${req.method} ${req.originalUrl}`,
+            });
+        });
+
+        // Global error handler
+        app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+            console.error('[UnhandledError]', err);
+            res.status(500).json({ message: 'Internal server error' });
+        });
+
         app.listen(config.app.port, () => {
             console.log(`Server is running on port ${config.app.port}`);
         });
