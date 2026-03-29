@@ -76,8 +76,8 @@ export class WasteReport {
     @JoinColumn({ name: 'assignedCollectorId' })
     assignedCollector?: User;
 
-    @Column({ type: 'text', default: '' })
-    imageEvidenceUrl!: string;
+    @Column({ type: 'text', nullable: true })
+    imageEvidenceUrl?: string;
 
     @CreateDateColumn({ type: 'timestamp' })
     createdAt!: Date;
