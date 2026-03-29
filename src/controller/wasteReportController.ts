@@ -1,24 +1,77 @@
 import { Request, Response, RequestHandler } from 'express';
 import AppDataSource from '../infrastructure/database';
-import { WasteReport, WasteReportStatus, WasteType } from '../entity/waste_report';
+import { WasteReport, WasteReportStatus } from '../entity/waste_report';
 import { User } from '../entity/user';
 import { validate as isUUID } from 'uuid';
+import { z } from 'zod';
+import TEXT from '../config/schemas/Text';
+import DECIMAL from '../config/schemas/Decimal';
+import axios from 'axios';
 
-const VALID_WASTE_TYPES = Object.values(WasteType) as string[];
+// const VALID_WASTE_TYPES = Object.values(WasteType) as string[];
 
 function getReportRepo() {
     return AppDataSource.getRepository(WasteReport);
 }
 
-async function generateReportCode(): Promise<string> {
-    const reportRepo = getReportRepo();
-    const result = await reportRepo
-        .createQueryBuilder('wr')
-        .select(`MAX(CAST(SUBSTRING(wr.code FROM 4) AS INTEGER))`, 'maxSeq')
-        .getRawOne();
-    const next = (result?.maxSeq ?? 0) + 1;
-    return `RPT${String(next).padStart(3, '0')}`;
+// async function generateReportCode(): Promise<string> {
+//     const reportRepo = getReportRepo();
+//     const result = await reportRepo
+//         .createQueryBuilder('wr')
+//         .select(`MAX(CAST(SUBSTRING(wr.code FROM 4) AS INTEGER))`, 'maxSeq')
+//         .getRawOne();
+//     const next = (result?.maxSeq ?? 0) + 1;
+//     return `RPT${String(next).padStart(3, '0')}`;
+// }
+const WateReportParamsSchema = z.object({
+    description: TEXT.optional(),
+    imageUrl: z.string().url(),
+    lat: DECIMAL,
+    lng: DECIMAL,
+    wasteKg: DECIMAL,
+    wardName: TEXT,
+});
+
+const API_URL = "https://ai-greenmind.khoav4.com/predict-pollutant-impact";
+const MOCK_DATA = {
+    "items": [
+        {
+            "name": "Plastic film",
+            "quantity": 9,
+            "area": 147757
+        },
+        {
+            "name": "Single-use carrier bag",
+            "quantity": 2,
+            "area": 18706
+        }
+    ],
+    "total_objects": 11,
+    "image_url": "https://res.cloudinary.com/dc8q7sv1f/image/upload/v1774678190/yolo_detect/detect/d11639b05dd24f4b967b03e2d7f31c8c.jpg",
+    "pollution": {
+        "CO2": 0.6931471805569416,
+        "microplastic": 0.6931471805569416,
+        "dioxin": 0.5365526341607301,
+        "non_biodegradable": 0.6931471805569416,
+        "CH4": 0.0,
+        "PM2.5": 0.0,
+        "NOx": 0.0,
+        "SO2": 0.0,
+        "Pb": 0.0,
+        "Hg": 0.0,
+        "Cd": 0.0,
+        "nitrate": 0.0,
+        "chemical_residue": 0.0,
+        "toxic_chemicals": 0.0,
+        "styrene": 0.0
+    },
+    "impact": {
+        "air_pollution": 1.2296998147176716,
+        "water_pollution": 0.6931471805569416,
+        "soil_pollution": 1.3862943611138832
+    }
 }
+const watesReportRepo = AppDataSource.getRepository(WasteReport);
 
 class WasteReportController {
     public createReport: RequestHandler = async (req: Request, res: Response) => {
@@ -29,45 +82,48 @@ class WasteReportController {
                 return;
             }
 
-            const { wasteType, wardName, lat, lng, wasteKg, description, imageKey, imageUrl } = req.body;
-            if (!wasteType || !VALID_WASTE_TYPES.includes(wasteType)) {
-                res.status(400).json({ message: `wasteType must be one of: ${VALID_WASTE_TYPES.join(', ')}` });
-                return;
-            }
-            if (!wardName || typeof wardName !== 'string' || wardName.trim() === '') {
-                res.status(400).json({ message: 'wardName is required' });
-                return;
-            }
-            if (lat === undefined || lat === null || lng === undefined || lng === null) {
-                res.status(400).json({ message: 'lat and lng are required' });
-                return;
-            }
+            const user = await AppDataSource.getRepository(User).findOneBy({ id: userId });
+            if (!user) {
+                return res.status(401).json({ message: 'Unauthorized: user not found' });
 
-            const parsedLat = parseFloat(lat);
-            const parsedLng = parseFloat(lng);
-            if (isNaN(parsedLat) || isNaN(parsedLng)) {
-                res.status(400).json({ message: 'lat and lng must be valid numbers' });
-                return;
             }
+            const parsed = WateReportParamsSchema.safeParse(req.body);
+            if (!parsed.success) {
+                return res.status(400).json({ message: 'Invalid request body', errors: parsed.error.errors });
+            }
+            const data = parsed.data;
 
-            const reportRepo = getReportRepo();
-            const code = await generateReportCode();
-            const newReport = reportRepo.create({
-                code,
-                wasteType: wasteType as WasteType,
-                wardName: wardName.trim(),
-                lat: parsedLat,
-                lng: parsedLng,
-                wasteKg: wasteKg !== undefined ? parseFloat(wasteKg) : undefined,
-                description: description ?? undefined,
-                imageKey: imageKey ?? undefined,
-                imageUrl: imageUrl ?? undefined,
+            const wasteReport = watesReportRepo.create({
+                description: data.description,
+                imageUrl: data.imageUrl,
+                lat: data.lat,
+                lng: data.lng,
+                wasteKg: data.wasteKg,
+                wardName: data.wardName,
                 reportedByUserId: userId,
-                status: WasteReportStatus.PENDING,
+                reportedBy: user,
+            });
+            await watesReportRepo.save(wasteReport);
+            res.status(201).json({
+                message: 'Waste report created successfully',
+                data: wasteReport,
             });
 
-            const created = await reportRepo.save(newReport);
-            res.status(200).json(created);
+            try {
+                // const response = axios.post(API_URL, {
+                //     image_url: data.imageUrl,
+                // });
+                // const result = (await response).data;
+                const result = MOCK_DATA;
+                wasteReport.items = result.items;
+                wasteReport.totalObjects = result.total_objects;
+                wasteReport.pollution = result.pollution;
+                wasteReport.impact = result.impact;
+                wasteReport.aiAnalysis = result.image_url;
+                await watesReportRepo.save(wasteReport);
+            } catch (error) {
+                console.error('Error calling AI service:', error);
+            }
         } catch (error) {
             res.status(500).json({ message: 'Internal server error' });
         }
@@ -80,24 +136,12 @@ class WasteReportController {
                 res.status(401).json({ message: 'Unauthorized' });
                 return;
             }
-
-            const { status, wardName, page = '1', limit = '10' } = req.query as Record<string, string>;
-            const pageNum = Math.max(1, parseInt(page) || 1);
-            const limitNum = Math.max(1, Math.min(parseInt(limit) || 10, 100));
-
-            const reportRepo = getReportRepo();
-            const qb = reportRepo
-                .createQueryBuilder('wr')
-                .where('wr.reportedByUserId = :userId', { userId })
-                .orderBy('wr.createdAt', 'DESC')
-                .skip((pageNum - 1) * limitNum)
-                .take(limitNum);
-
-            if (status) qb.andWhere('wr.status = :status', { status });
-            if (wardName) qb.andWhere('wr.wardName = :wardName', { wardName });
-
-            const [data, total] = await qb.getManyAndCount();
-            res.status(200).json({ data, total, page: pageNum, limit: limitNum });
+            const report = await watesReportRepo.find({
+                where: { reportedByUserId: userId },
+                order: { createdAt: 'DESC' },
+                relations: ['reportedBy', 'assignedCollector']
+            });
+            res.status(200).json(report);
         } catch (error) {
             res.status(500).json({ message: 'Internal server error' });
         }
@@ -115,8 +159,11 @@ class WasteReportController {
                 return res.status(400).json({ message: 'Invalid reportId' });
             }
 
-            const reportRepo = getReportRepo();
-            const report = await reportRepo.findOneBy({ id: req.params.id });
+            const report = await watesReportRepo.findOne({
+                where: { id: req.params.id },
+                relations: ['reportedBy', 'assignedCollector']
+            })
+
             if (!report) {
                 res.status(404).json({ message: 'Waste report not found' });
                 return;
@@ -218,46 +265,11 @@ class WasteReportController {
 
     public getAllReports: RequestHandler = async (req: Request, res: Response) => {
         try {
-            const { status, wardName, page = '1', limit = '10' } = req.query as Record<string, string>;
-            const pageNum = Math.max(1, parseInt(page) || 1);
-            const limitNum = Math.max(1, Math.min(parseInt(limit) || 10, 100));
-
-            const reportRepo = getReportRepo();
-            const qb = reportRepo
-                .createQueryBuilder('wr')
-                .leftJoinAndSelect('wr.reportedBy', 'reporter')
-                .leftJoinAndSelect('wr.assignedCollector', 'collector')
-                .orderBy('wr.createdAt', 'DESC')
-                .skip((pageNum - 1) * limitNum)
-                .take(limitNum);
-
-            if (status) qb.andWhere('wr.status = :status', { status });
-            if (wardName) qb.andWhere('wr.wardName = :wardName', { wardName });
-
-            const [rawData, total] = await qb.getManyAndCount();
-
-            const data = rawData.map((r) => ({
-                id: r.id,
-                code: r.code,
-                status: r.status,
-                wardName: r.wardName,
-                imageKey: r.imageKey,
-                imageUrl: r.imageUrl,
-                imageEvidenceUrl: r.imageEvidenceUrl,
-                lat: r.lat,
-                lng: r.lng,
-                wasteKg: r.wasteKg,
-                wasteType: r.wasteType,
-                description: r.description,
-                reportedBy: r.reportedBy?.fullName ?? null,
-                reportedByUserId: r.reportedByUserId,
-                assignedTo: r.assignedCollector?.fullName ?? null,
-                collectorId: r.assignedCollectorId ?? null,
-                createdAt: r.createdAt,
-                resolvedAt: r.resolvedAt ?? null,
-            }));
-
-            res.status(200).json({ data, total, page: pageNum, limit: limitNum });
+            const reports = await getReportRepo().find({
+                order: { createdAt: 'DESC' },
+                relations: ['reportedBy', 'assignedCollector']
+            });
+            res.status(200).json(reports);
         } catch (error) {
             res.status(500).json({ message: 'Internal server error' });
         }
