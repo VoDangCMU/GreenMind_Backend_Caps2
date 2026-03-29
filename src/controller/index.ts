@@ -1,8 +1,6 @@
 import user from "./userController";
-
 import questions from "./questionsController";
 import template from "./templateController";
-
 import location from "./locationController";
 import bigFive from "./bigFiveController";
 import behavior from "./behaviorController";
@@ -47,6 +45,6 @@ export default {
     user,
     userAnswers,
     checkin,
-    household
+    household,
     wasteReport,
 };
