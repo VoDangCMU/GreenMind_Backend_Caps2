@@ -71,6 +71,8 @@ class OCRController {
 
             // Save invoice to database
             const invoiceRepository = AppDataSource.getRepository(Invoice);
+            const { imageKey, imageUrl } = req.body;
+
             const invoice = invoiceRepository.create({
                 userId,
                 source_id: ocrResult.doc.source_id || undefined,
@@ -86,7 +88,9 @@ class OCRController {
                 subtotal: ocrResult.totals.subtotal || undefined,
                 discount: ocrResult.totals.discount || 0,
                 tax: ocrResult.totals.tax || 0,
-                grand_total: ocrResult.totals.grand_total
+                grand_total: ocrResult.totals.grand_total,
+                imageKey: imageKey || undefined,
+                imageUrl: imageUrl || undefined,
             });
 
             await invoiceRepository.save(invoice);
@@ -151,6 +155,8 @@ class OCRController {
                     tax: invoice.tax,
                     grand_total: invoice.grand_total
                 },
+                imageKey: invoice.imageKey ?? null,
+                imageUrl: invoice.imageUrl ?? null,
                 createdAt: invoice.createdAt,
                 updatedAt: invoice.updatedAt
             }));

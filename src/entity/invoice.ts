@@ -68,6 +68,12 @@ export class Invoice {
     @Column({ type: 'decimal', precision: 15, scale: 2 })
     grand_total!: number;
 
+    @Column({ type: 'text', nullable: true })
+    imageKey?: string;
+
+    @Column({ type: 'text', nullable: true })
+    imageUrl?: string;
+
     @CreateDateColumn({ type: 'timestamp' })
     createdAt!: Date;
 
