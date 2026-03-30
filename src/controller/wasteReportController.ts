@@ -6,23 +6,22 @@ import { validate as isUUID } from 'uuid';
 import { z } from 'zod';
 import TEXT from '../config/schemas/Text';
 import DECIMAL from '../config/schemas/Decimal';
-import axios from 'axios';
 
-// const VALID_WASTE_TYPES = Object.values(WasteType) as string[];
 
 function getReportRepo() {
     return AppDataSource.getRepository(WasteReport);
 }
 
-// async function generateReportCode(): Promise<string> {
-//     const reportRepo = getReportRepo();
-//     const result = await reportRepo
-//         .createQueryBuilder('wr')
-//         .select(`MAX(CAST(SUBSTRING(wr.code FROM 4) AS INTEGER))`, 'maxSeq')
-//         .getRawOne();
-//     const next = (result?.maxSeq ?? 0) + 1;
-//     return `RPT${String(next).padStart(3, '0')}`;
-// }
+async function generateReportCode(): Promise<string> {
+    const reportRepo = getReportRepo();
+    const result = await reportRepo
+        .createQueryBuilder('wr')
+        .select(`MAX(CAST(SUBSTRING(wr.code FROM 4) AS INTEGER))`, 'maxSeq')
+        .getRawOne();
+    const next = (result?.maxSeq ?? 0) + 1;
+    return `RPT${String(next).padStart(3, '0')}`;
+}
+
 const WateReportParamsSchema = z.object({
     description: TEXT.optional(),
     imageUrl: z.string().url(),
@@ -92,8 +91,9 @@ class WasteReportController {
                 return res.status(400).json({ message: 'Invalid request body', errors: parsed.error.errors });
             }
             const data = parsed.data;
-
-            const wasteReport = watesReportRepo.create({
+            const code = await generateReportCode();
+            const newWasteReport = watesReportRepo.create({
+                code: code,
                 description: data.description,
                 imageUrl: data.imageUrl,
                 lat: data.lat,
@@ -103,11 +103,7 @@ class WasteReportController {
                 reportedByUserId: userId,
                 reportedBy: user,
             });
-            await watesReportRepo.save(wasteReport);
-            res.status(201).json({
-                message: 'Waste report created successfully',
-                data: wasteReport,
-            });
+            await watesReportRepo.save(newWasteReport);
 
             try {
                 // const response = axios.post(API_URL, {
@@ -115,15 +111,17 @@ class WasteReportController {
                 // });
                 // const result = (await response).data;
                 const result = MOCK_DATA;
-                wasteReport.items = result.items;
-                wasteReport.totalObjects = result.total_objects;
-                wasteReport.pollution = result.pollution;
-                wasteReport.impact = result.impact;
-                wasteReport.aiAnalysis = result.image_url;
-                await watesReportRepo.save(wasteReport);
+                newWasteReport.items = result.items;
+                newWasteReport.totalObjects = result.total_objects;
+                newWasteReport.pollution = result.pollution;
+                newWasteReport.impact = result.impact;
+                newWasteReport.aiAnalysis = result.image_url;
+                await watesReportRepo.save(newWasteReport);
             } catch (error) {
                 console.error('Error calling AI service:', error);
             }
+
+            res.status(200).json(newWasteReport);
         } catch (error) {
             res.status(500).json({ message: 'Internal server error' });
         }
@@ -192,12 +190,7 @@ class WasteReportController {
                 return res.status(400).json({ message: 'Invalid reportId' });
             }
 
-            const { wasteType, wasteKg, description, imageKey, imageUrl } = req.body;
-
-            if (wasteType && !VALID_WASTE_TYPES.includes(wasteType)) {
-                res.status(400).json({ message: `wasteType must be one of: ${VALID_WASTE_TYPES.join(', ')}` });
-                return;
-            }
+            const { wasteKg, description, imageUrl } = req.body;
 
             const reportRepo = getReportRepo();
             const report = await reportRepo.findOneBy({ id: req.params.id });
@@ -215,14 +208,33 @@ class WasteReportController {
                 return;
             }
 
-            if (wasteType) report.wasteType = wasteType as WasteType;
             if (wasteKg !== undefined) report.wasteKg = parseFloat(wasteKg);
             if (description !== undefined) report.description = description;
-            if (imageKey !== undefined) report.imageKey = imageKey;
             if (imageUrl !== undefined) report.imageUrl = imageUrl;
 
-            const updated = await reportRepo.save(report);
-            res.status(200).json(updated);
+
+
+            await reportRepo.save(report);
+
+            if (imageUrl !== undefined) {
+                try {
+                    // const response = await axios.post(API_URL, {
+                    //     image_url: report.imageUrl,
+                    // });
+                    // const result = response.data;
+                    const result = MOCK_DATA;
+                    report.items = result.items;
+                    report.totalObjects = result.total_objects;
+                    report.pollution = result.pollution;
+                    report.impact = result.impact;
+                    report.aiAnalysis = result.image_url;
+                    await reportRepo.save(report);
+                } catch (error) {
+                    console.error('Error calling AI service:', error);
+                }
+            }
+
+            res.status(200).json(report);
         } catch (error) {
             res.status(500).json({ message: 'Internal server error' });
         }
@@ -386,21 +398,7 @@ class WasteReportController {
 
             const [rawData, total] = await qb.getManyAndCount();
 
-            const data = rawData.map((r) => ({
-                id: r.id,
-                code: r.code,
-                status: r.status,
-                wardName: r.wardName,
-                lat: r.lat,
-                lng: r.lng,
-                wasteKg: r.wasteKg,
-                wasteType: r.wasteType,
-                description: r.description,
-                reportedByUserId: r.reportedByUserId ?? null,
-                reportedBy: r.reportedBy?.fullName ?? null,
-                createdAt: r.createdAt,
-                resolvedAt: r.resolvedAt ?? null,
-            }));
+            const data = rawData;
 
             res.status(200).json({
                 collector: { id: collector.id, fullName: collector.fullName },
@@ -441,19 +439,7 @@ class WasteReportController {
 
             const [rawData, total] = await qb.getManyAndCount();
 
-            const data = rawData.map((r) => ({
-                id: r.id,
-                code: r.code,
-                reportedBy: r.reportedBy?.fullName ?? null,
-                lat: r.lat,
-                lng: r.lng,
-                wasteKg: r.wasteKg,
-                wasteType: r.wasteType,
-                description: r.description,
-                status: r.status,
-                createdAt: r.createdAt,
-                resolvedAt: r.resolvedAt ?? null,
-            }));
+            const data = rawData;
 
             res.status(200).json({ data, total });
         } catch (error) {

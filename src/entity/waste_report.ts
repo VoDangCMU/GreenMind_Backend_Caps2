@@ -9,8 +9,6 @@ export enum WasteReportStatus {
     DONE = 'done',
 }
 
-
-
 @Entity(WASTE_REPORTS_TABLE_NAME)
 @Index(['wardName', 'status'])
 @Index(['assignedCollectorId', 'status'])
@@ -37,6 +35,8 @@ export class WasteReport {
     @Column({ type: 'varchar', length: 100 })
     wardName!: string;
 
+    @Column({ type: 'varchar', unique: true })
+    code!: string;
 
     @Column({ type: 'jsonb', nullable: true })
     items?: Record<string, any>;
