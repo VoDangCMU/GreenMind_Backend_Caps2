@@ -1,7 +1,7 @@
 import { Request, Response, RequestHandler } from "express";
 import bcrypt from "bcrypt";
 import AppDataSource from "../infrastructure/database";
-import { User } from "../entity/user";
+import { User, UserRole } from "../entity/user";
 
 import { Locations } from "../entity/locations";
 import { JWTHelper } from "../utils/jwtHelper";
@@ -441,6 +441,49 @@ class UserController {
             return;
         } catch (error) {
             const duration = Date.now() - startTime;
+            res.status(500).json({ message: "Internal server error" });
+            return;
+        }
+    }
+
+    public ChangeUserRole: RequestHandler = async (req: Request, res: Response) => {
+        const { id } = req.params;
+        const { role } = req.body;
+
+        if (!id) {
+            res.status(400).json({ message: "User id is required" });
+            return;
+        }
+
+        if (!role) {
+            res.status(400).json({ message: "Role is required" });
+            return;
+        }
+
+        const validRoles = Object.values(UserRole);
+        if (!validRoles.includes(role as UserRole)) {
+            res.status(400).json({
+                message: `Invalid role. Valid roles are: ${validRoles.join(', ')}`
+            });
+            return;
+        }
+
+        try {
+            const userRepository = AppDataSource.getRepository(User);
+            const user = await userRepository.findOne({ where: { id } });
+
+            if (!user) {
+                res.status(404).json({ message: "User not found" });
+                return;
+            }
+
+            const oldRole = user.role;
+            user.role = role;
+            await userRepository.save(user);
+
+            res.status(200).json(user);
+            return;
+        } catch (error) {
             res.status(500).json({ message: "Internal server error" });
             return;
         }
