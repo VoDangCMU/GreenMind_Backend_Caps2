@@ -1,11 +1,12 @@
 import { Request, Response, RequestHandler } from 'express';
 import AppDataSource from '../infrastructure/database';
-import { WasteReport, WasteReportStatus } from '../entity/waste_report';
+import { DETECT_TYPE, WasteReport, WasteReportStatus } from '../entity/waste_report';
 import { User } from '../entity/user';
 import { validate as isUUID } from 'uuid';
 import { z } from 'zod';
 import TEXT from '../config/schemas/Text';
 import DECIMAL from '../config/schemas/Decimal';
+import axios from 'axios';
 
 
 function getReportRepo() {
@@ -31,49 +32,12 @@ const WateReportParamsSchema = z.object({
     wardName: TEXT,
 });
 
-const API_URL = "https://ai-greenmind.khoav4.com/predict-pollutant-impact";
-const MOCK_DATA = {
-    "items": [
-        {
-            "name": "Plastic film",
-            "quantity": 9,
-            "area": 147757
-        },
-        {
-            "name": "Single-use carrier bag",
-            "quantity": 2,
-            "area": 18706
-        }
-    ],
-    "total_objects": 11,
-    "image_url": "https://res.cloudinary.com/dc8q7sv1f/image/upload/v1774678190/yolo_detect/detect/d11639b05dd24f4b967b03e2d7f31c8c.jpg",
-    "pollution": {
-        "CO2": 0.6931471805569416,
-        "microplastic": 0.6931471805569416,
-        "dioxin": 0.5365526341607301,
-        "non_biodegradable": 0.6931471805569416,
-        "CH4": 0.0,
-        "PM2.5": 0.0,
-        "NOx": 0.0,
-        "SO2": 0.0,
-        "Pb": 0.0,
-        "Hg": 0.0,
-        "Cd": 0.0,
-        "nitrate": 0.0,
-        "chemical_residue": 0.0,
-        "toxic_chemicals": 0.0,
-        "styrene": 0.0
-    },
-    "impact": {
-        "air_pollution": 1.2296998147176716,
-        "water_pollution": 0.6931471805569416,
-        "soil_pollution": 1.3862943611138832
-    }
-}
+const PREDICT_POLLUTANT_URL = "https://ai-greenmind.khoav4.com/predict-pollutant-impact";
+const DETECT_TRASH_URL = "https://ai-greenmind.khoav4.com/detect-trash";
 const watesReportRepo = AppDataSource.getRepository(WasteReport);
 
 class WasteReportController {
-    public createReport: RequestHandler = async (req: Request, res: Response) => {
+    public PredictPollutant: RequestHandler = async (req: Request, res: Response) => {
         try {
             const userId = req.user?.userId;
             if (!userId) {
@@ -102,15 +66,16 @@ class WasteReportController {
                 wardName: data.wardName,
                 reportedByUserId: userId,
                 reportedBy: user,
+                detectType: DETECT_TYPE.DETECT_POLLUTANT,
+
             });
             await watesReportRepo.save(newWasteReport);
 
             try {
-                // const response = axios.post(API_URL, {
-                //     image_url: data.imageUrl,
-                // });
-                // const result = (await response).data;
-                const result = MOCK_DATA;
+                const response = await axios.post(PREDICT_POLLUTANT_URL, {
+                    image_url: newWasteReport.imageUrl,
+                });
+                const result = response.data;
                 newWasteReport.items = result.items;
                 newWasteReport.totalObjects = result.total_objects;
                 newWasteReport.pollution = result.pollution;
@@ -127,6 +92,58 @@ class WasteReportController {
         }
     };
 
+
+    public DetectTrashOnly: RequestHandler = async (req: Request, res: Response) => {
+        try {
+            const userId = req.user?.userId;
+            if (!userId) {
+                res.status(401).json({ message: 'Unauthorized' });
+                return;
+            }
+
+            const user = await AppDataSource.getRepository(User).findOneBy({ id: userId });
+            if (!user) {
+                return res.status(401).json({ message: 'Unauthorized: user not found' });
+            }
+            const parsed = WateReportParamsSchema.safeParse(req.body);
+            if (!parsed.success) {
+                return res.status(400).json({ message: 'Invalid request body', errors: parsed.error.errors });
+            }
+
+            const data = parsed.data;
+
+            const code = await generateReportCode();
+
+            const newWasteReport = watesReportRepo.create({
+                code: code,
+                description: data.description,
+                imageUrl: data.imageUrl,
+                lat: data.lat,
+                lng: data.lng,
+                wasteKg: data.wasteKg,
+                wardName: data.wardName,
+                reportedByUserId: userId,
+                reportedBy: user,
+                detectType: DETECT_TYPE.DETECT_TRASH,
+            });
+            await watesReportRepo.save(newWasteReport);
+            res.status(200).json({ message: ' Waste report created successfully', report: newWasteReport });
+            try {
+                const response = await axios.post(DETECT_TRASH_URL, {
+                    image_url: newWasteReport.imageUrl,
+                });
+                const result = response.data;
+                newWasteReport.items = result.items;
+                newWasteReport.totalObjects = result.total_objects;
+                await watesReportRepo.save(newWasteReport);
+            } catch (error) {
+                console.error('Error calling AI service:', error);
+            }
+
+        } catch (error) {
+            res.status(500).json({ message: 'Internal server error' });
+        }
+    };
     public getMyReports: RequestHandler = async (req: Request, res: Response) => {
         try {
             const userId = req.user?.userId;
@@ -211,29 +228,7 @@ class WasteReportController {
             if (wasteKg !== undefined) report.wasteKg = parseFloat(wasteKg);
             if (description !== undefined) report.description = description;
             if (imageUrl !== undefined) report.imageUrl = imageUrl;
-
-
-
             await reportRepo.save(report);
-
-            if (imageUrl !== undefined) {
-                try {
-                    // const response = await axios.post(API_URL, {
-                    //     image_url: report.imageUrl,
-                    // });
-                    // const result = response.data;
-                    const result = MOCK_DATA;
-                    report.items = result.items;
-                    report.totalObjects = result.total_objects;
-                    report.pollution = result.pollution;
-                    report.impact = result.impact;
-                    report.aiAnalysis = result.image_url;
-                    await reportRepo.save(report);
-                } catch (error) {
-                    console.error('Error calling AI service:', error);
-                }
-            }
-
             res.status(200).json(report);
         } catch (error) {
             res.status(500).json({ message: 'Internal server error' });

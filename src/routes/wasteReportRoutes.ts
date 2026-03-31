@@ -5,7 +5,8 @@ import wasteReportController from '../controller/wasteReportController';
 const router = Router();
 
 
-router.post('/', jwtAuthMiddleware, wasteReportController.createReport);
+router.post('/predict-pollutant', jwtAuthMiddleware, wasteReportController.PredictPollutant);
+router.post('/detect-trash', jwtAuthMiddleware, wasteReportController.DetectTrashOnly);
 router.get('/my', jwtAuthMiddleware, wasteReportController.getMyReports);
 //router.get('/', jwtAuthMiddleware, wasteReportController.getAllReports);
 router.get('/:id', jwtAuthMiddleware, wasteReportController.getReportById);

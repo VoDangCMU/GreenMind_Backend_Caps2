@@ -9,6 +9,12 @@ export enum WasteReportStatus {
     DONE = 'done',
 }
 
+export enum DETECT_TYPE {
+    DETECT_TRASH = 'detect_trash',
+    DETECT_POLLUTANT = 'predict_pollutant_impact'
+}
+
+
 @Entity(WASTE_REPORTS_TABLE_NAME)
 @Index(['wardName', 'status'])
 @Index(['assignedCollectorId', 'status'])
@@ -35,7 +41,7 @@ export class WasteReport {
     @Column({ type: 'varchar', length: 100 })
     wardName!: string;
 
-    @Column({ type: 'varchar', unique: true })
+    @Column({ type: 'varchar', unique: true, nullable: true })
     code!: string;
 
     @Column({ type: 'jsonb', nullable: true })
@@ -77,6 +83,9 @@ export class WasteReport {
 
     @Column({ type: 'text', nullable: true })
     imageEvidenceUrl?: string;
+
+    @Column({ type: 'enum', enum: DETECT_TYPE, nullable: true })
+    detectType?: DETECT_TYPE;
 
     @CreateDateColumn({ type: 'timestamp' })
     createdAt!: Date;

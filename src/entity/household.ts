@@ -4,6 +4,7 @@ import {
     JoinColumn,
     ManyToOne,
     OneToMany,
+    OneToOne,
     PrimaryGeneratedColumn,
 } from 'typeorm';
 import { UrbanArea } from './urban_area';
@@ -31,6 +32,10 @@ export class Household {
 
     @Column({ type: 'decimal', precision: 10, scale: 7, nullable: true })
     lng?: number;
+
+    @OneToOne(() => User, user => (user as any).household, { nullable: true })
+    @JoinColumn()
+    headOfHousehold?: User;
 
     @OneToMany(() => User, user => (user as any).household, { nullable: true })
     members?: User[];
