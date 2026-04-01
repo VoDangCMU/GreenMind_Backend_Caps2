@@ -15,6 +15,7 @@ async function generateReportCode(): Promise<string> {
     const result = await reportRepo
         .createQueryBuilder('wr')
         .select(`MAX(CAST(SUBSTRING(wr.code FROM 4) AS INTEGER))`, 'maxSeq')
+        .where(`wr.code ~ '^RPT[0-9]+$'`)
         .getRawOne();
     const next = (result?.maxSeq ?? 0) + 1;
     return `RPT${String(next).padStart(3, '0')}`;
