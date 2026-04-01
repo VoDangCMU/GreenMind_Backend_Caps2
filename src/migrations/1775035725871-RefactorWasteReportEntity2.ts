@@ -13,7 +13,6 @@ export class RefactorWasteReportEntity21775035725871 implements MigrationInterfa
         await queryRunner.query(`ALTER TABLE "waste_reports" ADD "wasteType" "public"."waste_reports_wastetype_enum"`);
         await queryRunner.query(`UPDATE "waste_reports" SET "wasteType" = 'mixed' WHERE "wasteType" IS NULL`);
         await queryRunner.query(`ALTER TABLE "waste_reports" ALTER COLUMN "wasteType" SET NOT NULL`);
-        // Backfill code for existing rows that have NULL — use UUID-based unique code
         await queryRunner.query(`UPDATE "waste_reports" SET "code" = 'WR-' || UPPER(SUBSTRING(CAST(id AS varchar), 1, 8)) WHERE "code" IS NULL`);
         await queryRunner.query(`ALTER TABLE "waste_reports" ALTER COLUMN "code" SET NOT NULL`);
     }

@@ -270,7 +270,8 @@ class WasteReportController {
             res.status(200).json({ data, total, page: pageNum, limit: limitNum });
             return;
         } catch (error) {
-            res.status(500).json({ message: 'Internal server error' });
+            console.error('[getAllReports]', error);
+            res.status(500).json({ message: 'Internal server error', detail: String(error) });
             return;
         }
     };
