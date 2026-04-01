@@ -10,19 +10,59 @@ const HouseholdParamsSchema = z.object({
     address: TEXT,
     lat: DECIMAL,
     lng: DECIMAL,
-    userId: z.array(z.string().uuid("Invalid question ID")).min(1, "At least one user ID is required"),
+    userId: z.array(z.string().uuid("Invalid user ID")).min(1, "At least one user ID is required"),
 });
 
 const UpdateHouseholdParamsSchema = z.object({
     address: TEXT.optional(),
     lat: DECIMAL.optional(),
     lng: DECIMAL.optional(),
-    userId: z.array(z.string().uuid("Invalid question ID")).optional(),
+    userId: z.array(z.string().uuid("Invalid user ID")).optional(),
 });
-
+const WasteDetectionRepository = AppDataSource.getRepository("WasteDetection");
 const UserRepository = AppDataSource.getRepository(User);
 const householdRepository = AppDataSource.getRepository(Household);
+const MOCK_DATA = {
+    "items": [
+        {
+            "name": "Plastic film",
+            "quantity": 9,
+            "area": 147757
+        },
+        {
+            "name": "Single-use carrier bag",
+            "quantity": 2,
+            "area": 18706
+        }
+    ],
+    "total_objects": 11,
+    "image_url": "https://res.cloudinary.com/dc8q7sv1f/image/upload/v1774678190/yolo_detect/detect/d11639b05dd24f4b967b03e2d7f31c8c.jpg",
+    "pollution": {
+        "CO2": 0.6931471805569416,
+        "microplastic": 0.6931471805569416,
+        "dioxin": 0.5365526341607301,
+        "non_biodegradable": 0.6931471805569416,
+        "CH4": 0.0,
+        "PM2.5": 0.0,
+        "NOx": 0.0,
+        "SO2": 0.0,
+        "Pb": 0.0,
+        "Hg": 0.0,
+        "Cd": 0.0,
+        "nitrate": 0.0,
+        "chemical_residue": 0.0,
+        "toxic_chemicals": 0.0,
+        "styrene": 0.0
+    },
+    "impact": {
+        "air_pollution": 1.2296998147176716,
+        "water_pollution": 0.6931471805569416,
+        "soil_pollution": 1.3862943611138832
+    }
+}
 
+const PREDICT_POLLUTANT_URL = "https://ai-greenmind.khoav4.com/predict-pollutant-impact";
+const DETECT_TRASH_URL = "https://ai-greenmind.khoav4.com/detect-trash";
 export class HouseholdController {
 
     public createHousehold: RequestHandler = async (req: any, res: any) => {
@@ -41,13 +81,16 @@ export class HouseholdController {
             if (!req.user || !req.user.userId) {
                 return res.status(401).json({ error: "Unauthorized" });
             }
+
+            const user = await UserRepository.findOne({
+                where: { id: req.user.userId }
+            });
             data.userId = data.userId.concat(req.user.userId);
             const users = await UserRepository.find({
                 where: {
                     id: In(data.userId),
                 }
             });
-
             if (users.length !== data.userId.length) {
                 return res.status(404).json({ error: "One or more user IDs not found" });
             }
@@ -63,7 +106,7 @@ export class HouseholdController {
                 address: data.address,
                 lat: data.lat,
                 lng: data.lng,
-                members: users
+                members: users,
             });
             await householdRepository.save(household);
 

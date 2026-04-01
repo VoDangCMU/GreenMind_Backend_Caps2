@@ -4,6 +4,7 @@ import {
     JoinColumn,
     ManyToOne,
     OneToMany,
+    OneToOne,
     PrimaryGeneratedColumn,
 } from 'typeorm';
 import { UrbanArea } from './urban_area';
