@@ -22,6 +22,7 @@ import nightOutFreqMetric from "./metrics/nightOutFreqController";
 import checkin from "./checkinController";
 import household from "./householdController";
 import wasteReport from "./wasteReportController";
+import detectTrash from "./detectController";
 export default {
     behavior,
     behaviorFeedback,
@@ -47,4 +48,5 @@ export default {
     checkin,
     household,
     wasteReport,
+    detectTrash
 };
