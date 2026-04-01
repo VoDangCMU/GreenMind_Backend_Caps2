@@ -9,12 +9,22 @@ export enum WasteReportStatus {
     DONE = 'done',
 }
 
+export enum WasteType {
+    PLASTIC = 'plastic',
+    ORGANIC = 'organic',
+    MIXED = 'mixed',
+    HAZARDOUS = 'hazardous',
+}
+
 @Entity(WASTE_REPORTS_TABLE_NAME)
 @Index(['wardName', 'status'])
 @Index(['assignedCollectorId', 'status'])
 export class WasteReport {
     @PrimaryGeneratedColumn('uuid')
     id!: string;
+
+    @Column({ type: 'varchar', unique: true })
+    code!: string;
 
     @Column({ type: 'text', nullable: true })
     description?: string;
@@ -31,27 +41,15 @@ export class WasteReport {
     @Column('float', { nullable: true })
     wasteKg?: number;
 
+    @Column({
+        type: 'enum',
+        enum: WasteType,
+    })
+    wasteType!: WasteType;
+
     @Index()
     @Column({ type: 'varchar', length: 100 })
     wardName!: string;
-
-    @Column({ type: 'varchar', unique: true })
-    code!: string;
-
-    @Column({ type: 'jsonb', nullable: true })
-    items?: Record<string, any>;
-
-    @Column({ type: 'jsonb', nullable: true })
-    pollution?: Record<string, any>;
-
-    @Column({ type: 'jsonb', nullable: true })
-    impact?: Record<string, any>;
-
-    @Column({ type: 'integer', nullable: true })
-    totalObjects?: number;
-
-    @Column({ type: 'text', nullable: true })
-    aiAnalysis?: string;
 
     @Index()
     @Column({
