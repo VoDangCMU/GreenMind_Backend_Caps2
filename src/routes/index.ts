@@ -23,6 +23,7 @@ import wasteReportRouter from "./wasteReportRoutes";
 import householdRouter from "./householdRoutes";
 import wasteMonitoringRouter from "./wasteMonitoringRoutes";
 import wasteCollectorRouter from "./wasteCollectorRoutes";
+import environmentalImpactRouter from "./environmentalImpactRoutes";
 
 const router = Router();
 
@@ -52,5 +53,6 @@ router.use("/waste-reports", wasteReportRouter);
 router.use("/households", householdRouter);
 router.use("/waste-monitoring", wasteMonitoringRouter);
 router.use("/waste-collector", wasteCollectorRouter);
+router.use("/environmental-impact", environmentalImpactRouter);
 
 export default router;
