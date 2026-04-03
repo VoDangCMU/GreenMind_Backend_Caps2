@@ -5,8 +5,9 @@ import { z } from "zod";
 import { In } from "typeorm";
 import { User } from "../entity/user";
 import { Household } from "../entity/household";
-import e, { RequestHandler } from "express";
+import { RequestHandler } from "express";
 import axios from "axios";
+import FormData from "form-data";
 import { DETECT_TYPE, WasteDetection } from "../entity/WasteDetection";
 
 interface DetectTrashResult {
@@ -85,11 +86,26 @@ export class DetectTrashController {
                 return res.status(400).json({ error: "Image URL is required" });
             }
 
-            const result = await axios.post(DETECT_TRASH_URL, { imageUrl });
-            // const result = MOCK_DATA;
+            const responseURL = await axios.get(imageUrl, {
+                responseType: "stream"
+            });
+
+            const formData = new FormData();
+            formData.append("file", responseURL.data as any, {
+                filename: "image.jpg",
+                contentType: responseURL.headers["content-type"]
+            });
+
+            const result = await axios.post(DETECT_TRASH_URL, formData, {
+                headers: {
+                    ...formData.getHeaders()
+                },
+                maxContentLength: Infinity,
+                maxBodyLength: Infinity
+            });
 
             const wasteDetection = WasteDetectionRepository.create({
-                imageUrl: result.data.image_url,
+                imageUrl: imageUrl,
                 items: result.data.items,
                 totalObjects: result.data.total_objects,
                 detectedBy: user,
@@ -101,7 +117,11 @@ export class DetectTrashController {
             await WasteDetectionRepository.save(wasteDetection);
 
             return res.status(200).json({ message: "Waste detection successful", data: wasteDetection });
-        } catch (error) {
+        } catch (error: any) {
+            console.error("DetectTrashOnly error:", error?.response?.data ?? error?.message ?? error);
+            if (error?.response?.status) {
+                return res.status(error.response.status).json({ error: error.response.data || "External API error" });
+            }
             res.status(500).json({ error: "Internal server error" });
         }
     }
@@ -118,17 +138,32 @@ export class DetectTrashController {
                 relations: { household: true }
             });
 
-            const imageUrl = req.body.imageUrl;
+            const imageUrl = req.body.imgURL || req.body.imageUrl;
 
             if (!imageUrl) {
                 return res.status(400).json({ error: "Image URL is required" });
             }
 
-            const result = await axios.post(PREDICT_POLLUTANT_URL, { imageUrl });
-            // const result = MOCK_DATA;
+            const responseURL = await axios.get(imageUrl, {
+                responseType: "stream"
+            });
+
+            const formData = new FormData();
+            formData.append("file", responseURL.data as any, {
+                filename: "image.jpg",
+                contentType: responseURL.headers["content-type"]
+            });
+
+            const result = await axios.post(PREDICT_POLLUTANT_URL, formData, {
+                headers: {
+                    ...formData.getHeaders()
+                },
+                maxContentLength: Infinity,
+                maxBodyLength: Infinity
+            });
 
             const wasteDetection = WasteDetectionRepository.create({
-                imageUrl: result.data.image_url,
+                imageUrl: imageUrl,
                 items: result.data.items,
                 pollution: result.data.pollution,
                 impact: result.data.impact,
@@ -149,7 +184,7 @@ export class DetectTrashController {
                 }
             });
             return res.status(200).json({ message: "Waste detection successful", data: createdDetection });
-        } catch (error) {
+        } catch (error: any) {
             res.status(500).json({ error: "Internal server error" });
         };
     }
