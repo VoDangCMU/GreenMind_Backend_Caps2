@@ -3,33 +3,53 @@ import { z } from "zod";
 import AppDataSource from "../infrastructure/database";
 import { EnvironmentalImpact } from "../entity/environmental_impact";
 import { Locations } from "../entity/locations";
-import { Between, MoreThanOrEqual, LessThanOrEqual } from "typeorm";
+import { User } from "../entity/user";
+import { Between } from "typeorm";
 
 const ImpactQuerySchema = z.object({
     range: z.enum(["day", "week", "month"]).default("month"),
 });
 
-const ImpactRecordSchema = z.object({
+const PollutionSchema = z.object({
+    CO2:               z.number().nonnegative().optional(),
+    dioxin:            z.number().nonnegative().optional(),
+    microplastic:      z.number().nonnegative().optional(),
+    toxic_chemicals:   z.number().nonnegative().optional(),
+    non_biodegradable: z.number().nonnegative().optional(),
+    NOx:               z.number().nonnegative().optional(),
+    SO2:               z.number().nonnegative().optional(),
+    CH4:               z.number().nonnegative().optional(),
+    "PM2.5":           z.number().nonnegative().optional(),
+    Pb:                z.number().nonnegative().optional(),
+    Hg:                z.number().nonnegative().optional(),
+    Cd:                z.number().nonnegative().optional(),
+    nitrate:           z.number().nonnegative().optional(),
+    chemical_residue:  z.number().nonnegative().optional(),
+    styrene:           z.number().nonnegative().optional(),
+}).optional();
+
+const ImpactBodySchema = z.object({
     record_date: z.string().datetime({ offset: true }).optional(),
-    co2_emission: z.number().nonnegative().optional(),
-    methane_emission: z.number().nonnegative().optional(),
-    nitrous_oxide: z.number().nonnegative().optional(),
-    particulate_matter: z.number().nonnegative().optional(),
-    sulfur_dioxide: z.number().nonnegative().optional(),
-    nitrogen_dioxide: z.number().nonnegative().optional(),
-    carbon_monoxide: z.number().nonnegative().optional(),
-    volatile_organic: z.number().nonnegative().optional(),
-    ammonia: z.number().nonnegative().optional(),
-    lead_emission: z.number().nonnegative().optional(),
-    mercury_emission: z.number().nonnegative().optional(),
-    cadmium_emission: z.number().nonnegative().optional(),
-    benzene_emission: z.number().nonnegative().optional(),
-    ozone_depletion: z.number().nonnegative().optional(),
-    radioactive_waste: z.number().nonnegative().optional(),
+    pollution: PollutionSchema,
+    impact: z.object({
+        air:   z.number().nonnegative().optional(),
+        water: z.number().nonnegative().optional(),
+        soil:  z.number().nonnegative().optional(),
+    }).optional(),
 });
 
-const ImpactRepo = () => AppDataSource.getRepository(EnvironmentalImpact);
+const ImpactRepo  = () => AppDataSource.getRepository(EnvironmentalImpact);
 const LocationRepo = () => AppDataSource.getRepository(Locations);
+const UserRepo    = () => AppDataSource.getRepository(User);
+
+async function assertUserExists(userId: string, res: Response): Promise<boolean> {
+    const exists = await UserRepo().findOne({ where: { id: userId }, select: ["id"] });
+    if (!exists) {
+        res.status(404).json({ message: "User not found in database" });
+        return false;
+    }
+    return true;
+}
 
 function buildDateRange(range: "day" | "week" | "month"): { from: Date; to: Date } {
     const to = new Date();
@@ -54,60 +74,23 @@ function startOfDay(date: Date): Date {
     return d;
 }
 
-function computePollutionFromDistance(distanceKm: number) {
-    const base = distanceKm * 0.21; // CO2 factor per km
-
-    return {
-        co2Emission: parseFloat((base * 2.0).toFixed(2)),
-        methaneEmission: parseFloat((base * 0.43).toFixed(2)),
-        nitrousOxide: parseFloat((base * 0.23).toFixed(2)),
-        particulateMatter: parseFloat((base * 0.74).toFixed(2)),
-        sulfurDioxide: parseFloat((base * 0.35).toFixed(2)),
-        nitrogenDioxide: parseFloat((base * 0.48).toFixed(2)),
-        carbonMonoxide: parseFloat((base * 0.66).toFixed(2)),
-        volatileOrganic: parseFloat((base * 0.31).toFixed(2)),
-        ammonia: parseFloat((base * 0.21).toFixed(2)),
-        leadEmission: parseFloat((base * 0.10).toFixed(2)),
-        mercuryEmission: parseFloat((base * 0.07).toFixed(2)),
-        cadmiumEmission: parseFloat((base * 0.04).toFixed(2)),
-        benzeneEmission: parseFloat((base * 0.16).toFixed(2)),
-        ozoneDepletion: parseFloat((base * 0.45).toFixed(2)),
-        radioactiveWaste: parseFloat((base * 0.08).toFixed(2)),
-    };
-}
-
-function computeImpact(pollution: ReturnType<typeof computePollutionFromDistance>) {
-    const airPollution = parseFloat(
-        (pollution.co2Emission + pollution.nitrogenDioxide + pollution.sulfurDioxide +
-            pollution.particulateMatter + pollution.carbonMonoxide + pollution.ozoneDepletion).toFixed(2)
-    );
-    const waterPollution = parseFloat(
-        (pollution.ammonia + pollution.mercuryEmission + pollution.cadmiumEmission + pollution.leadEmission).toFixed(2)
-    );
-    const soilPollution = parseFloat(
-        (pollution.radioactiveWaste + pollution.benzeneEmission + pollution.volatileOrganic + pollution.methaneEmission).toFixed(2)
-    );
-
-    return { airPollution, waterPollution, soilPollution };
-}
-
 function mapEntityToPollutionObject(record: EnvironmentalImpact) {
     return {
-        co2_emission: record.co2Emission,
-        methane_emission: record.methaneEmission,
-        nitrous_oxide: record.nitrousOxide,
-        particulate_matter: record.particulateMatter,
-        sulfur_dioxide: record.sulfurDioxide,
-        nitrogen_dioxide: record.nitrogenDioxide,
-        carbon_monoxide: record.carbonMonoxide,
-        volatile_organic: record.volatileOrganic,
-        ammonia: record.ammonia,
-        lead_emission: record.leadEmission,
-        mercury_emission: record.mercuryEmission,
-        cadmium_emission: record.cadmiumEmission,
-        benzene_emission: record.benzeneEmission,
-        ozone_depletion: record.ozoneDepletion,
-        radioactive_waste: record.radioactiveWaste,
+        CO2:               record.co2,
+        dioxin:            record.dioxin,
+        microplastic:      record.microplastic,
+        toxic_chemicals:   record.toxicChemicals,
+        non_biodegradable: record.nonBiodegradable,
+        NOx:               record.nox,
+        SO2:               record.so2,
+        CH4:               record.ch4,
+        "PM2.5":           record.pm25,
+        Pb:                record.pb,
+        Hg:                record.hg,
+        Cd:                record.cd,
+        nitrate:           record.nitrate,
+        chemical_residue:  record.chemicalResidue,
+        styrene:           record.styrene,
     };
 }
 
@@ -144,41 +127,41 @@ class EnvironmentalImpactController {
 
             // Aggregate pollution across all records in range
             const pollution = {
-                co2_emission: 0, methane_emission: 0, nitrous_oxide: 0,
-                particulate_matter: 0, sulfur_dioxide: 0, nitrogen_dioxide: 0,
-                carbon_monoxide: 0, volatile_organic: 0, ammonia: 0,
-                lead_emission: 0, mercury_emission: 0, cadmium_emission: 0,
-                benzene_emission: 0, ozone_depletion: 0, radioactive_waste: 0,
+                CO2: 0, dioxin: 0, microplastic: 0, toxic_chemicals: 0,
+                non_biodegradable: 0, NOx: 0, SO2: 0, CH4: 0,
+                "PM2.5": 0, Pb: 0, Hg: 0, Cd: 0,
+                nitrate: 0, chemical_residue: 0, styrene: 0,
             };
 
             let totalAir = 0;
             let totalWater = 0;
             let totalSoil = 0;
 
-            const pollutionKeys = Object.keys(pollution) as (keyof typeof pollution)[];
+            type PollKey = keyof typeof pollution;
+            const pollutionKeys = Object.keys(pollution) as PollKey[];
 
             for (const record of records) {
                 const p = mapEntityToPollutionObject(record);
                 for (const key of pollutionKeys) {
-                    pollution[key] = parseFloat((pollution[key] + p[key]).toFixed(2));
+                    pollution[key] = parseFloat((pollution[key] + (p[key] ?? 0)).toFixed(4));
                 }
-                totalAir += record.airPollution;
+                totalAir   += record.airPollution;
                 totalWater += record.waterPollution;
-                totalSoil += record.soilPollution;
+                totalSoil  += record.soilPollution;
             }
 
             const count = records.length;
             const impact = {
-                air_pollution: parseFloat((totalAir / count).toFixed(2)),
-                water_pollution: parseFloat((totalWater / count).toFixed(2)),
-                soil_pollution: parseFloat((totalSoil / count).toFixed(2)),
+                air:   parseFloat((totalAir   / count).toFixed(4)),
+                water: parseFloat((totalWater / count).toFixed(4)),
+                soil:  parseFloat((totalSoil  / count).toFixed(4)),
             };
 
             const timeSeries = records.map((r, i) => ({
-                day: i + 1,
-                air_pollution: r.airPollution,
-                water_pollution: r.waterPollution,
-                soil_pollution: r.soilPollution,
+                day:   i + 1,
+                air:   r.airPollution,
+                water: r.waterPollution,
+                soil:  r.soilPollution,
             }));
 
             return res.status(200).json({
@@ -191,19 +174,121 @@ class EnvironmentalImpactController {
     }
 
     /**
+     * POST /environmental-impact
+     * Log / upsert environmental impact for a given date.
+     * Body: { record_date?, pollution: { CO2, dioxin, ... }, impact: { air, water, soil } }
+     */
+    public async logImpact(req: Request, res: Response) {
+        if (!req.user?.userId) {
+            return res.status(401).json({ message: "Unauthorized" });
+        }
+
+        const parsed = ImpactBodySchema.safeParse(req.body);
+        if (!parsed.success) {
+            return res.status(400).json(parsed.error);
+        }
+
+        const { record_date, pollution, impact } = parsed.data;
+        const recordDate = record_date
+            ? startOfDay(new Date(record_date))
+            : startOfDay(new Date());
+
+        try {
+            const userOk = await assertUserExists(req.user.userId, res);
+            if (!userOk) return;
+
+            const existing = await ImpactRepo().findOne({
+                where: { userId: req.user.userId, recordDate },
+            });
+
+            const record = existing ?? ImpactRepo().create({ userId: req.user.userId });
+            record.recordDate = recordDate;
+
+            // Apply pollution fields if provided
+            if (pollution) {
+                if (pollution.CO2               !== undefined) record.co2               = pollution.CO2;
+                if (pollution.dioxin            !== undefined) record.dioxin            = pollution.dioxin;
+                if (pollution.microplastic      !== undefined) record.microplastic      = pollution.microplastic;
+                if (pollution.toxic_chemicals   !== undefined) record.toxicChemicals    = pollution.toxic_chemicals;
+                if (pollution.non_biodegradable !== undefined) record.nonBiodegradable  = pollution.non_biodegradable;
+                if (pollution.NOx               !== undefined) record.nox               = pollution.NOx;
+                if (pollution.SO2               !== undefined) record.so2               = pollution.SO2;
+                if (pollution.CH4               !== undefined) record.ch4               = pollution.CH4;
+                if (pollution["PM2.5"]          !== undefined) record.pm25              = pollution["PM2.5"];
+                if (pollution.Pb                !== undefined) record.pb                = pollution.Pb;
+                if (pollution.Hg                !== undefined) record.hg                = pollution.Hg;
+                if (pollution.Cd                !== undefined) record.cd                = pollution.Cd;
+                if (pollution.nitrate           !== undefined) record.nitrate           = pollution.nitrate;
+                if (pollution.chemical_residue  !== undefined) record.chemicalResidue   = pollution.chemical_residue;
+                if (pollution.styrene           !== undefined) record.styrene           = pollution.styrene;
+            }
+
+            // Apply impact fields if provided
+            if (impact) {
+                if (impact.air   !== undefined) record.airPollution   = impact.air;
+                if (impact.water !== undefined) record.waterPollution  = impact.water;
+                if (impact.soil  !== undefined) record.soilPollution   = impact.soil;
+            }
+
+            const saved = await ImpactRepo().save(record);
+
+            return res.status(existing ? 200 : 201).json({
+                message: existing ? "Environmental impact updated" : "Environmental impact logged",
+                data: saved,
+            });
+        } catch {
+            return res.status(500).json({ message: "Internal server error" });
+        }
+    }
+
+    /**
+     * GET /environmental-impact/history
+     * Returns full history paginated
+     */
+    public async getHistory(req: Request, res: Response) {
+        if (!req.user?.userId) {
+            return res.status(401).json({ message: "Unauthorized" });
+        }
+
+        const page  = Math.max(1, parseInt(String(req.query.page  ?? "1"),  10));
+        const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit ?? "30"), 10)));
+
+        try {
+            const [records, total] = await ImpactRepo().findAndCount({
+                where: { userId: req.user.userId },
+                order: { recordDate: "DESC" },
+                skip: (page - 1) * limit,
+                take: limit,
+            });
+
+            return res.status(200).json({
+                message: "History retrieved",
+                data: records,
+                pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+            });
+        } catch {
+            return res.status(500).json({ message: "Internal server error" });
+        }
+    }
+
+    /**
      * POST /environmental-impact/compute
-     * Auto-compute today's environmental impact from user's location data
+     * Auto-compute today's environmental impact from user's location data (GPS distance).
+     * Uses simplified emission factors for new pollutant schema.
      */
     public async computeFromLocations(req: Request, res: Response) {
         if (!req.user?.userId) {
             return res.status(401).json({ message: "Unauthorized" });
         }
 
-        const today = startOfDay(new Date());
+        const today    = startOfDay(new Date());
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
 
         try {
+            const userOk = await assertUserExists(req.user.userId, res);
+            if (!userOk) return;
+
             const locations = await LocationRepo().find({
                 where: {
                     userId: req.user.userId,
@@ -217,15 +302,35 @@ class EnvironmentalImpactController {
                 0
             );
 
-            const pollution = computePollutionFromDistance(distanceKm);
-            const { airPollution, waterPollution, soilPollution } = computeImpact(pollution);
+            // Emission factors per km (transport-based estimates)
+            const base = distanceKm * 0.21;
+            const pollution = {
+                co2:              parseFloat((base * 2.0).toFixed(4)),
+                dioxin:           parseFloat((base * 0.005).toFixed(4)),
+                microplastic:     parseFloat((base * 0.01).toFixed(4)),
+                toxicChemicals:   parseFloat((base * 0.15).toFixed(4)),
+                nonBiodegradable: parseFloat((base * 0.12).toFixed(4)),
+                nox:              parseFloat((base * 0.48).toFixed(4)),
+                so2:              parseFloat((base * 0.35).toFixed(4)),
+                ch4:              parseFloat((base * 0.43).toFixed(4)),
+                pm25:             parseFloat((base * 0.74).toFixed(4)),
+                pb:               parseFloat((base * 0.10).toFixed(4)),
+                hg:               parseFloat((base * 0.07).toFixed(4)),
+                cd:               parseFloat((base * 0.04).toFixed(4)),
+                nitrate:          parseFloat((base * 0.20).toFixed(4)),
+                chemicalResidue:  parseFloat((base * 0.08).toFixed(4)),
+                styrene:          parseFloat((base * 0.06).toFixed(4)),
+            };
+
+            const airPollution   = parseFloat((pollution.co2 + pollution.nox + pollution.so2 + pollution.pm25).toFixed(4));
+            const waterPollution = parseFloat((pollution.pb  + pollution.hg  + pollution.cd  + pollution.nitrate).toFixed(4));
+            const soilPollution  = parseFloat((pollution.ch4 + pollution.styrene + pollution.toxicChemicals + pollution.nonBiodegradable).toFixed(4));
 
             const existing = await ImpactRepo().findOne({
                 where: { userId: req.user.userId, recordDate: today },
             });
 
             const record = existing ?? ImpactRepo().create({ userId: req.user.userId });
-
             Object.assign(record, {
                 recordDate: today,
                 ...pollution,
@@ -246,107 +351,93 @@ class EnvironmentalImpactController {
     }
 
     /**
-     * POST /environmental-impact
-     * Manually log environmental impact for a given date
+     * POST /environmental-impact/compute-all
+     * Compute today's environmental impact for ALL users based on location data.
      */
-    public async logImpact(req: Request, res: Response) {
-        if (!req.user?.userId) {
-            return res.status(401).json({ message: "Unauthorized" });
-        }
-
-        const parsed = ImpactRecordSchema.safeParse(req.body);
-        if (!parsed.success) {
-            return res.status(400).json(parsed.error);
-        }
-
-        const data = parsed.data;
-        const recordDate = data.record_date ? startOfDay(new Date(data.record_date)) : startOfDay(new Date());
+    public async computeAllUsers(req: Request, res: Response) {
+        const today    = startOfDay(new Date());
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
 
         try {
-            const existing = await ImpactRepo().findOne({
-                where: { userId: req.user.userId, recordDate },
-            });
+            const allUsers = await UserRepo().find({ select: ["id"] });
 
-            const record = existing ?? ImpactRepo().create({ userId: req.user.userId });
+            let successCount = 0;
+            let skippedCount = 0;
+            const errors: string[] = [];
 
-            if (data.co2_emission !== undefined)       record.co2Emission = data.co2_emission;
-            if (data.methane_emission !== undefined)   record.methaneEmission = data.methane_emission;
-            if (data.nitrous_oxide !== undefined)      record.nitrousOxide = data.nitrous_oxide;
-            if (data.particulate_matter !== undefined) record.particulateMatter = data.particulate_matter;
-            if (data.sulfur_dioxide !== undefined)     record.sulfurDioxide = data.sulfur_dioxide;
-            if (data.nitrogen_dioxide !== undefined)   record.nitrogenDioxide = data.nitrogen_dioxide;
-            if (data.carbon_monoxide !== undefined)    record.carbonMonoxide = data.carbon_monoxide;
-            if (data.volatile_organic !== undefined)   record.volatileOrganic = data.volatile_organic;
-            if (data.ammonia !== undefined)            record.ammonia = data.ammonia;
-            if (data.lead_emission !== undefined)      record.leadEmission = data.lead_emission;
-            if (data.mercury_emission !== undefined)   record.mercuryEmission = data.mercury_emission;
-            if (data.cadmium_emission !== undefined)   record.cadmiumEmission = data.cadmium_emission;
-            if (data.benzene_emission !== undefined)   record.benzeneEmission = data.benzene_emission;
-            if (data.ozone_depletion !== undefined)    record.ozoneDepletion = data.ozone_depletion;
-            if (data.radioactive_waste !== undefined)  record.radioactiveWaste = data.radioactive_waste;
+            for (const user of allUsers) {
+                try {
+                    const locations = await LocationRepo().find({
+                        where: {
+                            userId: user.id,
+                            createdAt: Between(today, tomorrow),
+                        },
+                        order: { createdAt: "ASC" },
+                    });
 
-            record.recordDate = recordDate;
+                    const distanceKm = locations.reduce(
+                        (acc, loc) => acc + (loc.lengthToPreviousLocation ?? 0),
+                        0
+                    );
 
-            const pollution = computePollutionFromDistance(0);
-            const impact = computeImpact({
-                co2Emission: record.co2Emission,
-                methaneEmission: record.methaneEmission,
-                nitrousOxide: record.nitrousOxide,
-                particulateMatter: record.particulateMatter,
-                sulfurDioxide: record.sulfurDioxide,
-                nitrogenDioxide: record.nitrogenDioxide,
-                carbonMonoxide: record.carbonMonoxide,
-                volatileOrganic: record.volatileOrganic,
-                ammonia: record.ammonia,
-                leadEmission: record.leadEmission,
-                mercuryEmission: record.mercuryEmission,
-                cadmiumEmission: record.cadmiumEmission,
-                benzeneEmission: record.benzeneEmission,
-                ozoneDepletion: record.ozoneDepletion,
-                radioactiveWaste: record.radioactiveWaste,
-            });
+                    const existing = await ImpactRepo().findOne({
+                        where: { userId: user.id, recordDate: today },
+                    });
 
-            record.airPollution = impact.airPollution;
-            record.waterPollution = impact.waterPollution;
-            record.soilPollution = impact.soilPollution;
+                    if (distanceKm === 0 && !existing) {
+                        skippedCount++;
+                        continue;
+                    }
 
-            void pollution; // unused variable suppressed
+                    const base = distanceKm * 0.21;
+                    const pollution = {
+                        co2:              parseFloat((base * 2.0).toFixed(4)),
+                        dioxin:           parseFloat((base * 0.005).toFixed(4)),
+                        microplastic:     parseFloat((base * 0.01).toFixed(4)),
+                        toxicChemicals:   parseFloat((base * 0.15).toFixed(4)),
+                        nonBiodegradable: parseFloat((base * 0.12).toFixed(4)),
+                        nox:              parseFloat((base * 0.48).toFixed(4)),
+                        so2:              parseFloat((base * 0.35).toFixed(4)),
+                        ch4:              parseFloat((base * 0.43).toFixed(4)),
+                        pm25:             parseFloat((base * 0.74).toFixed(4)),
+                        pb:               parseFloat((base * 0.10).toFixed(4)),
+                        hg:               parseFloat((base * 0.07).toFixed(4)),
+                        cd:               parseFloat((base * 0.04).toFixed(4)),
+                        nitrate:          parseFloat((base * 0.20).toFixed(4)),
+                        chemicalResidue:  parseFloat((base * 0.08).toFixed(4)),
+                        styrene:          parseFloat((base * 0.06).toFixed(4)),
+                    };
 
-            const saved = await ImpactRepo().save(record);
+                    const airPollution   = parseFloat((pollution.co2 + pollution.nox + pollution.so2 + pollution.pm25).toFixed(4));
+                    const waterPollution = parseFloat((pollution.pb  + pollution.hg  + pollution.cd  + pollution.nitrate).toFixed(4));
+                    const soilPollution  = parseFloat((pollution.ch4 + pollution.styrene + pollution.toxicChemicals + pollution.nonBiodegradable).toFixed(4));
 
-            return res.status(201).json({
-                message: "Environmental impact logged",
-                data: saved,
-            });
-        } catch {
-            return res.status(500).json({ message: "Internal server error" });
-        }
-    }
+                    const record = existing ?? ImpactRepo().create({ userId: user.id });
+                    Object.assign(record, {
+                        recordDate: today,
+                        ...pollution,
+                        airPollution,
+                        waterPollution,
+                        soilPollution,
+                    });
 
-    /**
-     * GET /environmental-impact/history
-     * Returns full history paginated (admin or self)
-     */
-    public async getHistory(req: Request, res: Response) {
-        if (!req.user?.userId) {
-            return res.status(401).json({ message: "Unauthorized" });
-        }
-
-        const page = Math.max(1, parseInt(String(req.query.page ?? "1"), 10));
-        const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit ?? "30"), 10)));
-
-        try {
-            const [records, total] = await ImpactRepo().findAndCount({
-                where: { userId: req.user.userId },
-                order: { recordDate: "DESC" },
-                skip: (page - 1) * limit,
-                take: limit,
-            });
+                    await ImpactRepo().save(record);
+                    successCount++;
+                } catch (e) {
+                    errors.push(`user:${user.id} — ${(e as Error).message}`);
+                }
+            }
 
             return res.status(200).json({
-                message: "History retrieved",
-                data: records,
-                pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+                message: "Compute-all finished",
+                data: {
+                    total: allUsers.length,
+                    success: successCount,
+                    skipped: skippedCount,
+                    failed: errors.length,
+                    errors,
+                },
             });
         } catch {
             return res.status(500).json({ message: "Internal server error" });

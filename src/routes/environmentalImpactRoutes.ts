@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { jwtAuthMiddleware } from "../middlewares/jwtMiddleware";
+import { adminMiddleware } from "../middlewares/adminMiddleware";
 import environmentalImpactController from "../controller/environmentalImpactController";
 
 const router = Router();
@@ -12,7 +13,10 @@ router.get("/", environmentalImpactController.getSummary);
 // GET /environmental-impact/history?page=1&limit=30
 router.get("/history", environmentalImpactController.getHistory);
 
-// POST /environmental-impact/compute  — auto-calculate from today's locations
+// POST /environmental-impact/compute-all  — compute for ALL users (authenticated)
+router.post("/compute-all", environmentalImpactController.computeAllUsers);
+
+// POST /environmental-impact/compute  — self: auto-calculate from today's locations
 router.post("/compute", environmentalImpactController.computeFromLocations);
 
 // POST /environmental-impact  — manual log
