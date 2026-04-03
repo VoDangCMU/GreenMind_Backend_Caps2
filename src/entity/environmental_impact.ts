@@ -27,60 +27,60 @@ export class EnvironmentalImpact {
     @Column({ type: "date", name: "record_date" })
     recordDate!: Date;
 
-    // Pollution metrics (relative values)
-    @Column({ type: "double precision", default: 0, name: "co2_emission" })
-    co2Emission!: number;
-
-    @Column({ type: "double precision", default: 0, name: "methane_emission" })
-    methaneEmission!: number;
-
-    @Column({ type: "double precision", default: 0, name: "nitrous_oxide" })
-    nitrousOxide!: number;
-
-    @Column({ type: "double precision", default: 0, name: "particulate_matter" })
-    particulateMatter!: number;
-
-    @Column({ type: "double precision", default: 0, name: "sulfur_dioxide" })
-    sulfurDioxide!: number;
-
-    @Column({ type: "double precision", default: 0, name: "nitrogen_dioxide" })
-    nitrogenDioxide!: number;
-
-    @Column({ type: "double precision", default: 0, name: "carbon_monoxide" })
-    carbonMonoxide!: number;
-
-    @Column({ type: "double precision", default: 0, name: "volatile_organic" })
-    volatileOrganic!: number;
+    // ── Pollution metrics (15 substances) ──────────────────────────────────
+    @Column({ type: "double precision", default: 0 })
+    co2!: number;
 
     @Column({ type: "double precision", default: 0 })
-    ammonia!: number;
+    dioxin!: number;
 
-    @Column({ type: "double precision", default: 0, name: "lead_emission" })
-    leadEmission!: number;
+    @Column({ type: "double precision", default: 0 })
+    microplastic!: number;
 
-    @Column({ type: "double precision", default: 0, name: "mercury_emission" })
-    mercuryEmission!: number;
+    @Column({ type: "double precision", name: "toxic_chemicals", default: 0 })
+    toxicChemicals!: number;
 
-    @Column({ type: "double precision", default: 0, name: "cadmium_emission" })
-    cadmiumEmission!: number;
+    @Column({ type: "double precision", name: "non_biodegradable", default: 0 })
+    nonBiodegradable!: number;
 
-    @Column({ type: "double precision", default: 0, name: "benzene_emission" })
-    benzeneEmission!: number;
+    @Column({ type: "double precision", default: 0 })
+    nox!: number;
 
-    @Column({ type: "double precision", default: 0, name: "ozone_depletion" })
-    ozoneDepletion!: number;
+    @Column({ type: "double precision", default: 0 })
+    so2!: number;
 
-    @Column({ type: "double precision", default: 0, name: "radioactive_waste" })
-    radioactiveWaste!: number;
+    @Column({ type: "double precision", default: 0 })
+    ch4!: number;
 
-    // Aggregated impact categories
-    @Column({ type: "double precision", default: 0, name: "air_pollution" })
+    @Column({ type: "double precision", default: 0 })
+    pm25!: number;
+
+    @Column({ type: "double precision", default: 0 })
+    pb!: number;
+
+    @Column({ type: "double precision", default: 0 })
+    hg!: number;
+
+    @Column({ type: "double precision", default: 0 })
+    cd!: number;
+
+    @Column({ type: "double precision", default: 0 })
+    nitrate!: number;
+
+    @Column({ type: "double precision", name: "chemical_residue", default: 0 })
+    chemicalResidue!: number;
+
+    @Column({ type: "double precision", default: 0 })
+    styrene!: number;
+
+    // ── Aggregated impact categories ───────────────────────────────────────
+    @Column({ type: "double precision", name: "air_pollution", default: 0 })
     airPollution!: number;
 
-    @Column({ type: "double precision", default: 0, name: "water_pollution" })
+    @Column({ type: "double precision", name: "water_pollution", default: 0 })
     waterPollution!: number;
 
-    @Column({ type: "double precision", default: 0, name: "soil_pollution" })
+    @Column({ type: "double precision", name: "soil_pollution", default: 0 })
     soilPollution!: number;
 
     @CreateDateColumn({ type: "timestamp" })
