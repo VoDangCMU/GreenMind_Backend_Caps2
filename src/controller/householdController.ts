@@ -182,5 +182,18 @@ export class HouseholdController {
             res.status(500).json({ error: "Internal server error" });
         }
     }
+
+    public getAllHouseholds: RequestHandler = async (_req: any, res: any) => {
+        try {
+            const households = await householdRepository.find({
+                order: { createdAt: "DESC" },
+                relations: { members: true }
+            });
+            return res.status(200).json({ data: households });
+        } catch (error) {
+            res.status(500).json({ error: "Internal server error" });
+        }
+    }
+
 }
 export default new HouseholdController();

@@ -1,11 +1,13 @@
 import {
     Column,
+    CreateDateColumn,
     Entity,
     JoinColumn,
     ManyToOne,
     OneToMany,
     OneToOne,
     PrimaryGeneratedColumn,
+    UpdateDateColumn,
 } from 'typeorm';
 import { UrbanArea } from './urban_area';
 import { User } from './user';
@@ -35,4 +37,10 @@ export class Household {
 
     @OneToMany(() => User, user => (user as any).household, { nullable: true })
     members?: User[];
+
+    @CreateDateColumn({ type: 'timestamp' })
+    createdAt!: Date;
+
+    @UpdateDateColumn({ type: 'timestamp' })
+    updatedAt!: Date;
 }
