@@ -236,5 +236,43 @@ export class DetectTrashController {
             res.status(500).json({ error: "Internal server error" });
         }
     }
+
+    public getAllDetectionsByHousehold: RequestHandler = async (req: any, res: any) => {
+        try {
+            const detections = await WasteDetectionRepository.find({
+                relations: { detectedBy: true, household: true },
+                order: { createdAt: "DESC" }
+            });
+            return res.status(200).json({ message: "Detection history retrieved successfully", data: detections });
+        } catch (error) {
+            res.status(500).json({ error: "Internal server error" });
+        }
+    }
+
+    public getHouseholdById: RequestHandler = async (req: any, res: any) => {
+        try {
+            const householdId = req.params.id;
+            if (!householdId) {
+                return res.status(400).json({ error: "Household ID is required" });
+            }
+
+            const household = await householdRepository.findOne({
+                where: { id: householdId },
+                relations: { members: true }
+            });
+            if (!household) {
+                return res.status(404).json({ error: "Household not found" });
+            }
+            const detections = await WasteDetectionRepository.find({
+                where: { household: { id: householdId } },
+                relations: { detectedBy: true, household: true },
+                order: { createdAt: "DESC" }
+            });
+
+            return res.status(200).json({ message: "Detection history retrieved successfully", data: detections });
+        } catch (error) {
+            res.status(500).json({ error: "Internal server error" });
+        }
+    }
 }
 export default new DetectTrashController();
