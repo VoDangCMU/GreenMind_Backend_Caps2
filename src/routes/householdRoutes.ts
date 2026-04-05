@@ -15,4 +15,5 @@ router.post("/detect-trash", DetectTrashController.DetectTrashOnly);
 router.post("/predict-pollutant", DetectTrashController.PredictPollutantImpact);
 router.get("/detect-trash/historyByUser", DetectTrashController.getDetectionHistoryByUser);
 router.get("/detect-trash/historyByHousehold", DetectTrashController.getDetectionHistoryByHousehold);
+router.get("/get-detect-by-household/:id", DetectTrashController.getHouseholdById);
 export default router;
