@@ -38,6 +38,9 @@ export class Household {
     @OneToMany(() => User, user => (user as any).household, { nullable: true })
     members?: User[];
 
+    @Column({ type: 'double precision', nullable: true, default: 0 })
+    scoreGreen?: number;
+
     @CreateDateColumn({ type: 'timestamp' })
     createdAt!: Date;
 
