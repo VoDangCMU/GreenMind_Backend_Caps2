@@ -35,6 +35,18 @@ export class WasteDetection {
     @Column({ type: 'integer', nullable: true })
     totalObjects?: number;
 
+    @Column({ type: 'double precision', nullable: true })
+    totalMassKg?: number;
+
+    @Column({ type: 'text', nullable: true })
+    annotatedImageUrl?: string;
+
+    @Column({ type: 'text', nullable: true })
+    depthMapUrl?: string;
+
+    @Column({ type: 'jsonb', nullable: true })
+    itemsMass?: Record<string, any>;
+
     @Column({ type: 'text', nullable: true })
     aiAnalysis?: string;
 
