@@ -75,8 +75,12 @@ export class HouseholdController {
             if (!user) {
                 return res.status(404).json({ error: "Unauthorized" });
             }
+
+            if (!user.householdId) {
+                return res.status(404).json({ error: "User does not belong to a household" });
+            }
             const holdhousehold = await householdRepository.findOne({
-                where: { id: user?.householdId },
+                where: { id: user.householdId },
                 relations: { members: true }
             });
             if (!holdhousehold) {
@@ -166,7 +170,7 @@ export class HouseholdController {
                 })
             ]);
 
-            if (!user && !member) {
+            if (!user || !member) {
                 return res.status(404).json({ error: "User or member not found" });
             }
 
