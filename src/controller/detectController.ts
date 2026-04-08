@@ -259,6 +259,41 @@ export class DetectTrashController {
         }
     }
 
+    public getDetectionByTypeHousehold: RequestHandler = async (req: any, res: any) => {
+        try {
+
+            const userId = req.user?.userId;
+            if (!userId) {
+                return res.status(401).json({ error: "Unauthorized" });
+            }
+
+            const user = await UserRepository.findOne({
+                where: { id: userId },
+                relations: { household: true }
+            });
+
+            if (!user) {
+                return res.status(404).json({ error: "User not found" });
+            }
+
+            if (!user.household) {
+                return res.status(404).json({ error: "Household not found" });
+            }
+
+            const { type } = req.params;
+            if (!type || !Object.values(DETECT_TYPE).includes(type as DETECT_TYPE)) {
+                return res.status(400).json({ error: "Invalid detection type" });
+            }
+            const detections = await WasteDetectionRepository.find({
+                where: { detectType: type as DETECT_TYPE, household: { id: user.household.id } },
+                relations: { detectedBy: true, household: true },
+                order: { createdAt: "DESC" }
+            });
+            return res.status(200).json({ message: "Detection history retrieved successfully", data: detections });
+        } catch (error) {
+            res.status(500).json({ error: "Internal server error" });
+        }
+    }
 
     public getHouseholdById: RequestHandler = async (req: any, res: any) => {
         try {
