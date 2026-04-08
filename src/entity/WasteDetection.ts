@@ -11,7 +11,8 @@ import { Household } from "./household";
 import { User } from "./user";
 export enum DETECT_TYPE {
     DETECT_TRASH = 'detect_trash',
-    PREDICT_POLLUTANT = 'predict_pollutant_impact'
+    PREDICT_POLLUTANT = 'predict_pollutant_impact',
+    TOTAL_MASS = 'total_mass'
 }
 const WASTE_DETECTION_TABLE_NAME = 'waste_detection';
 
@@ -43,9 +44,6 @@ export class WasteDetection {
 
     @Column({ type: 'text', nullable: true })
     depthMapUrl?: string;
-
-    @Column({ type: 'jsonb', nullable: true })
-    itemsMass?: Record<string, any>;
 
     @Column({ type: 'text', nullable: true })
     aiAnalysis?: string;

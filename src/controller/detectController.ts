@@ -50,34 +50,19 @@ export class DetectTrashController {
             const contentType = responseURL.headers["content-type"] || "application/octet-stream";
 
             const detectFormData = createFormData(buffer, contentType);
-            const massFormData = createFormData(buffer, contentType);
 
-            const [result, resultMass] = await Promise.all([
-                axios.post(DETECT_TRASH_URL, detectFormData, {
-                    headers: {
-                        ...detectFormData.getHeaders()
-                    },
-                    maxContentLength: Infinity,
-                    maxBodyLength: Infinity,
-                    timeout: 60000
-                }),
-                axios.post(TOTAL_MASS_URL, massFormData, {
-                    headers: {
-                        ...massFormData.getHeaders()
-                    },
-                    maxContentLength: Infinity,
-                    maxBodyLength: Infinity,
-                    timeout: 60000
-                })
-            ]);
+            const result = await axios.post(DETECT_TRASH_URL, detectFormData, {
+                headers: {
+                    ...detectFormData.getHeaders(),
+                },
+                maxContentLength: Infinity,
+                maxBodyLength: Infinity
+            });
+
             const wasteDetection = WasteDetectionRepository.create({
                 imageUrl: imageUrl,
                 items: result.data.items,
                 totalObjects: result.data.total_objects,
-                totalMassKg: resultMass.data.total_mass_kg,
-                itemsMass: resultMass.data.items,
-                annotatedImageUrl: resultMass.data.annotated_image_url,
-                depthMapUrl: resultMass.data.depth_map_urls,
                 detectedBy: user,
                 household: user?.household,
                 detectType: DETECT_TYPE.DETECT_TRASH,
@@ -88,10 +73,6 @@ export class DetectTrashController {
 
             return res.status(200).json({ message: "Waste detection successful", data: wasteDetection });
         } catch (error: any) {
-            console.error("DetectTrashOnly error:", error?.response?.data ?? error?.message ?? error);
-            if (error?.response?.status) {
-                return res.status(error.response.status).json({ error: error.response.data || "External API error" });
-            }
             res.status(500).json({ error: "Internal server error" });
         }
     }
@@ -122,36 +103,20 @@ export class DetectTrashController {
 
             const predictFormData = createFormData(buffer, contentType);
 
-            const massFormData = createFormData(buffer, contentType);
+            const result = await axios.post(PREDICT_POLLUTANT_URL, predictFormData, {
+                headers: {
+                    ...predictFormData.getHeaders()
+                },
+                maxContentLength: Infinity,
+                maxBodyLength: Infinity
+            });
 
-            const [result, resultMass] = await Promise.all([
-                axios.post(PREDICT_POLLUTANT_URL, predictFormData, {
-                    headers: {
-                        ...predictFormData.getHeaders()
-                    },
-                    maxContentLength: Infinity,
-                    maxBodyLength: Infinity,
-                    timeout: 60000
-                }),
-                axios.post(TOTAL_MASS_URL, massFormData, {
-                    headers: {
-                        ...massFormData.getHeaders()
-                    },
-                    maxContentLength: Infinity,
-                    maxBodyLength: Infinity,
-                    timeout: 60000
-                })
-            ]);
             const wasteDetection = WasteDetectionRepository.create({
                 imageUrl: imageUrl,
                 items: result.data.items,
                 pollution: result.data.pollution,
                 impact: result.data.impact,
                 totalObjects: result.data.total_objects,
-                totalMassKg: resultMass.data.total_mass_kg,
-                itemsMass: resultMass.data.items,
-                annotatedImageUrl: resultMass.data.annotated_image_url,
-                depthMapUrl: resultMass.data.depth_map_url,
                 detectedBy: user,
                 household: user?.household,
                 detectType: DETECT_TYPE.PREDICT_POLLUTANT,
@@ -173,6 +138,50 @@ export class DetectTrashController {
         };
     }
 
+    public TotalMass: RequestHandler = async (req: any, res: any) => {
+        try {
+            const userId = req.user?.userId;
+            if (!userId) {
+                return res.status(401).json({ error: "Unauthorized" });
+            }
+            const user = await UserRepository.findOne({
+                where: { id: userId },
+                relations: { household: true }
+            });
+            const imageUrl = req.body.imageUrl;
+            if (!imageUrl) {
+                return res.status(400).json({ error: "Image URL is required" });
+            }
+            const responseURL = await axios.get(imageUrl, {
+                responseType: "arraybuffer"
+            });
+            const buffer = Buffer.from(responseURL.data);
+            const contentType = responseURL.headers["content-type"] || "application/octet-stream";
+            const formData = createFormData(buffer, contentType);
+            const result = await axios.post(TOTAL_MASS_URL, formData, {
+                headers: {
+                    ...formData.getHeaders(),
+                },
+                maxContentLength: Infinity,
+                maxBodyLength: Infinity
+            });
+            const wasteDetection = WasteDetectionRepository.create({
+                imageUrl: imageUrl,
+                items: result.data.items,
+                totalMassKg: result.data.total_mass_kg,
+                annotatedImageUrl: result.data.annotated_image_url,
+                depthMapUrl: result.data.depth_map_url,
+                detectedBy: user,
+                household: user?.household,
+                detectType: DETECT_TYPE.TOTAL_MASS,
+                householdId: user?.householdId
+            });
+            await WasteDetectionRepository.save(wasteDetection);
+            return res.status(200).json({ message: "Total mass estimation successful", data: wasteDetection });
+        } catch (error: any) {
+            res.status(500).json({ error: "Internal server error" });
+        }
+    }
     public getDetectionHistoryByUser: RequestHandler = async (req: any, res: any) => {
         try {
             const userId = req.user?.userId;
@@ -232,6 +241,24 @@ export class DetectTrashController {
             res.status(500).json({ error: "Internal server error" });
         }
     }
+
+    public getDetectionByType: RequestHandler = async (req: any, res: any) => {
+        try {
+            const { type } = req.params;
+            if (!type || !Object.values(DETECT_TYPE).includes(type as DETECT_TYPE)) {
+                return res.status(400).json({ error: "Invalid detection type" });
+            }
+            const detections = await WasteDetectionRepository.find({
+                where: { detectType: type as DETECT_TYPE },
+                relations: { detectedBy: true, household: true },
+                order: { createdAt: "DESC" }
+            });
+            return res.status(200).json({ message: "Detection history retrieved successfully", data: detections });
+        } catch (error) {
+            res.status(500).json({ error: "Internal server error" });
+        }
+    }
+
 
     public getHouseholdById: RequestHandler = async (req: any, res: any) => {
         try {
