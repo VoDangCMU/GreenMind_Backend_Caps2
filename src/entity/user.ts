@@ -14,6 +14,7 @@ import { BigFive } from "./big_five";
 import { Segment } from "./segments";
 import { Role } from "./role";
 import { Household } from './household';
+import { WasteDetection } from './WasteDetection';
 
 export enum UserRole {
     HOUSEHOLD = 'household',
@@ -89,4 +90,7 @@ export class User {
 
     @OneToOne(() => BigFive, bigFive => bigFive.user)
     bigFive!: BigFive;
+
+    @OneToMany(() => WasteDetection, wasteDetection => wasteDetection.detectedBy, { nullable: true })
+    wasteDetections?: WasteDetection[];
 }

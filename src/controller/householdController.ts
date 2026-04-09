@@ -10,59 +10,17 @@ const HouseholdParamsSchema = z.object({
     address: TEXT,
     lat: DECIMAL,
     lng: DECIMAL,
-    userId: z.array(z.string().uuid("Invalid user ID")).min(1, "At least one user ID is required"),
 });
 
 const UpdateHouseholdParamsSchema = z.object({
     address: TEXT.optional(),
     lat: DECIMAL.optional(),
     lng: DECIMAL.optional(),
-    userId: z.array(z.string().uuid("Invalid user ID")).optional(),
+    userId: z.string().uuid().optional()
 });
-const WasteDetectionRepository = AppDataSource.getRepository("WasteDetection");
 const UserRepository = AppDataSource.getRepository(User);
 const householdRepository = AppDataSource.getRepository(Household);
-const MOCK_DATA = {
-    "items": [
-        {
-            "name": "Plastic film",
-            "quantity": 9,
-            "area": 147757
-        },
-        {
-            "name": "Single-use carrier bag",
-            "quantity": 2,
-            "area": 18706
-        }
-    ],
-    "total_objects": 11,
-    "image_url": "https://res.cloudinary.com/dc8q7sv1f/image/upload/v1774678190/yolo_detect/detect/d11639b05dd24f4b967b03e2d7f31c8c.jpg",
-    "pollution": {
-        "CO2": 0.6931471805569416,
-        "microplastic": 0.6931471805569416,
-        "dioxin": 0.5365526341607301,
-        "non_biodegradable": 0.6931471805569416,
-        "CH4": 0.0,
-        "PM2.5": 0.0,
-        "NOx": 0.0,
-        "SO2": 0.0,
-        "Pb": 0.0,
-        "Hg": 0.0,
-        "Cd": 0.0,
-        "nitrate": 0.0,
-        "chemical_residue": 0.0,
-        "toxic_chemicals": 0.0,
-        "styrene": 0.0
-    },
-    "impact": {
-        "air_pollution": 1.2296998147176716,
-        "water_pollution": 0.6931471805569416,
-        "soil_pollution": 1.3862943611138832
-    }
-}
 
-const PREDICT_POLLUTANT_URL = "https://ai-greenmind.khoav4.com/predict-pollutant-impact";
-const DETECT_TRASH_URL = "https://ai-greenmind.khoav4.com/detect-trash";
 export class HouseholdController {
 
     public createHousehold: RequestHandler = async (req: any, res: any) => {
@@ -72,51 +30,30 @@ export class HouseholdController {
                 return res.status(400).json({ error: parsed.error.errors });
             }
 
-            const data = parsed.data;
-
-            if (!data.userId || data.userId.length === 0) {
-                return res.status(400).json({ error: "At least one user ID is required" });
-            }
-
             if (!req.user || !req.user.userId) {
                 return res.status(401).json({ error: "Unauthorized" });
             }
-
             const user = await UserRepository.findOne({
-                where: { id: req.user.userId }
+                where: { id: req.user.userId },
+                relations: { household: true }
             });
-            data.userId = data.userId.concat(req.user.userId);
-            const users = await UserRepository.find({
-                where: {
-                    id: In(data.userId),
-                }
-            });
-            if (users.length !== data.userId.length) {
-                return res.status(404).json({ error: "One or more user IDs not found" });
+
+            if (user?.household) {
+                return res.status(400).json({ error: "User already belongs to a household" });
             }
 
-            const usersAlreadyInHousehold = users.filter(user => user.householdId !== null && user.householdId !== undefined);
-            if (usersAlreadyInHousehold.length > 0) {
-                return res.status(400).json({
-                    error: "Some users already belong to a household",
-                });
-            }
+            const data = parsed.data;
 
-            const household = householdRepository.create({
+            const newHousehold = householdRepository.create({
                 address: data.address,
                 lat: data.lat,
                 lng: data.lng,
-                members: users,
+                members: user ? [user] : []
             });
-            await householdRepository.save(household);
-
-            const createdHousehold = await householdRepository.findOne({
-                where: { id: household.id },
-                relations: { members: true }
-            });
+            await householdRepository.save(newHousehold);
             return res.status(201).json({
                 message: "Household created successfully",
-                data: createdHousehold
+                data: newHousehold
             });
 
         } catch (error) {
@@ -138,8 +75,12 @@ export class HouseholdController {
             if (!user) {
                 return res.status(404).json({ error: "Unauthorized" });
             }
+
+            if (!user.householdId) {
+                return res.status(404).json({ error: "User does not belong to a household" });
+            }
             const holdhousehold = await householdRepository.findOne({
-                where: { id: user?.householdId },
+                where: { id: user.householdId },
                 relations: { members: true }
             });
             if (!holdhousehold) {
@@ -184,22 +125,19 @@ export class HouseholdController {
             newHouseholdData.lng = data.lng ?? household.lng;
 
             if (data.userId) {
-                const users = await UserRepository.find({
-                    where: {
-                        id: In(data.userId),
-                    }
+                const memberToAdd = await UserRepository.findOne({
+                    where: { id: data.userId },
+                    relations: { household: true }
                 });
-                if (users.length !== data.userId.length) {
-                    return res.status(404).json({ error: "One or more user IDs not found" });
-                }
-                const usersAlreadyInHousehold = users.filter(user => user.householdId !== null && user.householdId !== undefined && user.householdId !== household.id);
-                if (usersAlreadyInHousehold.length > 0) {
-                    return res.status(400).json({
-                        error: "Some users already belong to a different household",
-                    });
+
+                if (!memberToAdd) {
+                    return res.status(400).json({ error: "Invalid user ID" });
                 }
 
-                newHouseholdData.members = household.members?.concat(users);
+                if (memberToAdd.household) {
+                    return res.status(400).json({ error: "User already belongs to a household" });
+                }
+                newHouseholdData.members = [memberToAdd, ...(household.members || [])];
             }
 
             Object.assign(household, newHouseholdData);
@@ -232,7 +170,7 @@ export class HouseholdController {
                 })
             ]);
 
-            if (!user && !member) {
+            if (!user || !member) {
                 return res.status(404).json({ error: "User or member not found" });
             }
 
@@ -248,5 +186,18 @@ export class HouseholdController {
             res.status(500).json({ error: "Internal server error" });
         }
     }
+
+    public getAllHouseholds: RequestHandler = async (_req: any, res: any) => {
+        try {
+            const households = await householdRepository.find({
+                order: { createdAt: "DESC" },
+                relations: { members: true }
+            });
+            return res.status(200).json({ data: households });
+        } catch (error) {
+            res.status(500).json({ error: "Internal server error" });
+        }
+    }
+
 }
 export default new HouseholdController();

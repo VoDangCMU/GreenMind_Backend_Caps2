@@ -12,10 +12,13 @@ router.get("/", environmentalImpactController.getSummary);
 // GET /environmental-impact/history?page=1&limit=30
 router.get("/history", environmentalImpactController.getHistory);
 
-// POST /environmental-impact/compute  — auto-calculate from today's locations
+// POST /environmental-impact/compute-all — compute for ALL users
+router.post("/compute-all", environmentalImpactController.computeAllUsers);
+
+// POST /environmental-impact/compute — self: auto-calculate from today's locations
 router.post("/compute", environmentalImpactController.computeFromLocations);
 
-// POST /environmental-impact  — manual log
+// POST /environmental-impact — manual log
 router.post("/", environmentalImpactController.logImpact);
 
 // DELETE /environmental-impact/:id
