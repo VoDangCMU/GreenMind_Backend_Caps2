@@ -4,6 +4,8 @@ import wasteReportController from '../controller/wasteReportController';
 
 const router = Router();
 
+// ⚠️ /leaderboard phải đứng TRƯỚC /:id
+router.get('/leaderboard', wasteReportController.getLeaderboard);
 
 router.post('/', jwtAuthMiddleware, wasteReportController.createReport);
 router.get('/my', jwtAuthMiddleware, wasteReportController.getMyReports);

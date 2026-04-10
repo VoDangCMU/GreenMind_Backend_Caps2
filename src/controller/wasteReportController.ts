@@ -594,6 +594,38 @@ class WasteReportController {
             return;
         }
     };
+
+    public getLeaderboard: RequestHandler = async (req: Request, res: Response) => {
+        try {
+            const rows = await getReportRepo()
+                .createQueryBuilder('wr')
+                .select('wr.reportedByUserId', 'userId')
+                .addSelect('u.fullName',  'fullName')
+                .addSelect('u.username',  'username')
+                .addSelect('COUNT(wr.id)', 'reportCount')
+                .innerJoin(User, 'u', 'u.id = wr.reportedByUserId')
+                .where('wr.reportedByUserId IS NOT NULL')
+                .groupBy('wr.reportedByUserId')
+                .addGroupBy('u.fullName')
+                .addGroupBy('u.username')
+                .orderBy('COUNT(wr.id)', 'DESC')
+                .limit(10)
+                .getRawMany();
+
+            const data = rows.map((row, index) => ({
+                rank:        index + 1,
+                userId:      row.userId,
+                fullName:    row.fullName,
+                username:    row.username,
+                reportCount: parseInt(row.reportCount, 10),
+            }));
+
+            res.status(200).json({ data });
+        } catch (error) {
+            console.error('[getLeaderboard]', error);
+            res.status(500).json({ message: 'Internal server error' });
+        }
+    };
 }
 
 export default new WasteReportController();

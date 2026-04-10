@@ -65,3 +65,34 @@ export const revokeTokenMiddleware = async (req: Request, res: Response, next: N
 
     next();
 };
+
+// Middleware dùng cho route auth tùy chọn (optional auth).
+// Nếu có token hợp lệ → set req.user. Nếu không có token → next() bình thường.
+export const jwtOptionalMiddleware = async (req: Request, res: Response, next: NextFunction) => {
+    let token = req.cookies?.access_token;
+
+    if (!token) {
+        const authHeader = req.headers.authorization;
+        if (authHeader && authHeader.startsWith("Bearer ")) {
+            token = authHeader.split(" ")[1];
+        }
+    }
+
+    if (!token) {
+        return next(); // Không có token → tiếp tục, req.user = undefined
+    }
+
+    try {
+        const payload = JWTHelper.verifyAccessToken(token);
+        if (payload) {
+            const isBlacklisted = await BitmapHelper.isTokenBlacklisted(token);
+            if (!isBlacklisted) {
+                req.user = { userId: payload.userId, role: payload.role };
+            }
+        }
+    } catch {
+        // Token lỗi → bỏ qua, không reject
+    }
+
+    next();
+};
