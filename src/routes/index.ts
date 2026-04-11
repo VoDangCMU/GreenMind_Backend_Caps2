@@ -25,6 +25,8 @@ import wasteMonitoringRouter from "./wasteMonitoringRoutes";
 import wasteCollectorRouter from "./wasteCollectorRoutes";
 import environmentalImpactRouter from "./environmentalImpactRoutes";
 import blogRouter from "./blogRoutes";
+import campaignRouter from "./campaignRoutes";
+import participantCampaignRouter from "./participantCampaignRoutes";
 
 const router = Router();
 
@@ -56,5 +58,7 @@ router.use("/waste-monitoring", wasteMonitoringRouter);
 router.use("/waste-collector", wasteCollectorRouter);
 router.use("/environmental-impact", environmentalImpactRouter);
 router.use("/blogs", blogRouter);
+router.use("/campaigns", campaignRouter);
+router.use("/participant-campaigns", participantCampaignRouter);
 
 export default router;

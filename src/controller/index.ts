@@ -24,6 +24,8 @@ import household from "./householdController";
 import wasteReport from "./wasteReportController";
 import detectTrash from "./detectController";
 import greenScore from "./greenScoreController";
+import campaign from "./campaignController";
+
 export default {
     behavior,
     behaviorFeedback,
@@ -51,4 +53,5 @@ export default {
     wasteReport,
     detectTrash,
     greenScore,
+    campaign,
 };
