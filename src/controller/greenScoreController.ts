@@ -5,6 +5,7 @@ import { DETECT_TYPE, WasteDetection } from "../entity/WasteDetection";
 import { User } from "../entity/user";
 import axios from "axios";
 import { tr } from "zod/v4/locales";
+import { Household } from "../entity/household";
 
 const userRepository = AppDataSource.getRepository(User);
 const wasteDetectionRepository = AppDataSource.getRepository(WasteDetection);
@@ -146,6 +147,31 @@ class GreenScoreController {
             });
         } catch (error: any) {
             res.status(500).json({ message: "Internal server error", detail: error?.message });
+        }
+    }
+
+    public getGreenScoreByHousehold: RequestHandler = async (req, res) => {
+        try {
+            const householdId = req.params.householdId;
+            if (!householdId) {
+                return res.status(400).json({ message: "Household ID is required" });
+            }
+            const holdhousehold = await AppDataSource.getRepository(Household).findOne({
+                where: { id: householdId },
+                relations: {
+                    greenScores: true
+                }
+            });
+            if (!holdhousehold) {
+                return res.status(404).json({ message: "Household not found" });
+            }
+            res.status(200).json({
+                message: "Green score retrieved successfully",
+                data: holdhousehold
+            });
+
+        } catch (error) {
+            res.status(500).json({ message: "Internal server error" });
         }
     }
 }

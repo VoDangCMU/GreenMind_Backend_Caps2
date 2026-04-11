@@ -23,4 +23,5 @@ router.get("/detect-trash/historyByHousehold/:type", DetectTrashController.getDe
 router.post("/green-score/:detectId", greenScoreController.submitGreenScore);
 router.get("/green-score/history", greenScoreController.getGreenScoreHistory);
 router.delete("/green-score/reset", greenScoreController.deleteGreenScores);
+router.get("/green-score/:householdId", greenScoreController.getGreenScoreByHousehold);
 export default router;
