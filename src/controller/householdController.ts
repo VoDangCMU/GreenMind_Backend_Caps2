@@ -6,6 +6,7 @@ import { In } from "typeorm";
 import { User } from "../entity/user";
 import { Household } from "../entity/household";
 import e, { RequestHandler } from "express";
+import { GreenScore } from "../entity/greenScore";
 const HouseholdParamsSchema = z.object({
     address: TEXT,
     lat: DECIMAL,
@@ -20,6 +21,7 @@ const UpdateHouseholdParamsSchema = z.object({
 });
 const UserRepository = AppDataSource.getRepository(User);
 const householdRepository = AppDataSource.getRepository(Household);
+const greenScoreRepository = AppDataSource.getRepository(GreenScore);
 
 export class HouseholdController {
 
@@ -51,9 +53,22 @@ export class HouseholdController {
                 members: user ? [user] : []
             });
             await householdRepository.save(newHousehold);
+
+            const defaultScore = greenScoreRepository.create({
+                previousScore: 50,
+                delta: 0,
+                finalScore: 50,
+                householdId: newHousehold.id,
+                household: newHousehold
+            });
+            await greenScoreRepository.save(defaultScore);
+
             return res.status(201).json({
                 message: "Household created successfully",
-                data: newHousehold
+                data: {
+                    household: newHousehold,
+                    greenScore: defaultScore.finalScore
+                }
             });
 
         } catch (error) {
@@ -81,12 +96,26 @@ export class HouseholdController {
             }
             const holdhousehold = await householdRepository.findOne({
                 where: { id: user.householdId },
-                relations: { members: true }
+                relations: {
+                    members: true
+                }
             });
+
             if (!holdhousehold) {
                 return res.status(404).json({ error: "Household not found" });
             }
-            return res.status(200).json({ data: holdhousehold });
+
+            const score = await AppDataSource.getRepository(GreenScore).findOne({
+                where: { householdId: user.householdId },
+                order: { createdAt: "DESC" }
+            });
+
+            res.status(200).json({
+                data: {
+                    holdhousehold,
+                    greenScore: score?.finalScore
+                }
+            });
         } catch (error) {
             res.status(500).json({ error: "Internal server error" });
 
@@ -193,7 +222,22 @@ export class HouseholdController {
                 order: { createdAt: "DESC" },
                 relations: { members: true }
             });
-            return res.status(200).json({ data: households });
+
+            const greenScores = await greenScoreRepository.find({
+                where: { householdId: In(households.map(h => h.id)) },
+                order: { createdAt: "DESC" }
+            });
+            const householdData = households.map(household => {
+                const score = greenScores.find(score => score.householdId === household.id);
+                return {
+                    ...household,
+                    greenScore: score ? score.finalScore : 50
+                };
+            });
+            return res.status(200).json({
+                message: "Households retrieved successfully",
+                data: householdData
+            });
         } catch (error) {
             res.status(500).json({ error: "Internal server error" });
         }

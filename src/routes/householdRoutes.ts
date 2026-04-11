@@ -2,6 +2,7 @@ import { Router } from "express";
 import HouseholdController from "../controller/householdController";
 import { jwtAuthMiddleware } from "../middlewares/jwtMiddleware";
 import DetectTrashController from "../controller/detectController";
+import greenScoreController from "../controller/greenScoreController";
 
 const router = Router();
 
@@ -19,4 +20,7 @@ router.get("/detect-trash/historyByHousehold", DetectTrashController.getDetectio
 router.get("/get-detect-by-household/:id", DetectTrashController.getHouseholdById);
 router.get("/detect-trash/:type", DetectTrashController.getDetectionByType);
 router.get("/detect-trash/historyByHousehold/:type", DetectTrashController.getDetectionByTypeHousehold);
+router.post("/green-score/:detectId", greenScoreController.submitGreenScore);
+router.get("/green-score/history", greenScoreController.getGreenScoreHistory);
+router.delete("/green-score/reset", greenScoreController.deleteGreenScores);
 export default router;
