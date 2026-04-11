@@ -15,6 +15,8 @@ import { Segment } from "./segments";
 import { Role } from "./role";
 import { Household } from './household';
 import { WasteDetection } from './WasteDetection';
+import { Campaign } from './campaign';
+import { CampaignParticipant } from './campaign_participants';
 
 export enum UserRole {
     HOUSEHOLD = 'household',
@@ -93,4 +95,10 @@ export class User {
 
     @OneToMany(() => WasteDetection, wasteDetection => wasteDetection.detectedBy, { nullable: true })
     wasteDetections?: WasteDetection[];
+
+    @OneToMany(() => Campaign, (campaign: Campaign) => campaign.createdBy)
+    campaignsCreated?: Campaign[];
+
+    @OneToMany(() => CampaignParticipant, (participant: CampaignParticipant) => participant.user)
+    campaignsParticipated?: CampaignParticipant[];
 }

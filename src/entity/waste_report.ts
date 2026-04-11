@@ -1,5 +1,6 @@
 import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, Index } from 'typeorm';
 import { User } from './user';
+import { Campaign } from './campaign';
 
 export const WASTE_REPORTS_TABLE_NAME = 'waste_reports';
 
@@ -81,4 +82,11 @@ export class WasteReport {
 
     @Column({ type: 'timestamp', nullable: true })
     resolvedAt?: Date;
+
+    @Column({ type: 'uuid', nullable: true })
+    campaignId?: string;
+
+    @ManyToOne(() => Campaign, (campaign: Campaign) => campaign.reports, { nullable: true, onDelete: 'SET NULL' })
+    @JoinColumn({ name: 'campaignId' })
+    campaign?: Campaign;
 }
