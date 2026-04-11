@@ -6,7 +6,6 @@ export const WASTE_REPORTS_TABLE_NAME = 'waste_reports';
 
 export enum WasteReportStatus {
     PENDING = 'pending',
-    ASSIGNED = 'assigned',
     DONE = 'done',
 }
 
@@ -19,7 +18,6 @@ export enum WasteType {
 
 @Entity(WASTE_REPORTS_TABLE_NAME)
 @Index(['wardName', 'status'])
-@Index(['assignedCollectorId', 'status'])
 export class WasteReport {
     @PrimaryGeneratedColumn('uuid')
     id!: string;
@@ -33,14 +31,29 @@ export class WasteReport {
     @Column({ type: 'text', nullable: true })
     imageUrl?: string;
 
+    @Column({ type: 'text', nullable: true })
+    segmentedImageUrl?: string;
+
+    @Column({ type: 'text', nullable: true })
+    depthImageUrl?: string;
+
+    @Column({ type: 'text', nullable: true })
+    heatmapUrl?: string;
+
+    @Column('double precision', { nullable: true })
+    segmentRatio?: number;
+
+    @Column('double precision', { nullable: true })
+    pollutionScore?: number;
+
+    @Column({ type: 'text', nullable: true })
+    pollutionLevel?: string;
+
     @Column('double precision')
     lat!: number;
 
     @Column('double precision')
     lng!: number;
-
-    @Column('float', { nullable: true })
-    wasteKg?: number;
 
     @Column({
         type: 'enum',
@@ -66,13 +79,6 @@ export class WasteReport {
     @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
     @JoinColumn({ name: 'reportedByUserId' })
     reportedBy?: User;
-
-    @Column({ type: 'uuid', nullable: true })
-    assignedCollectorId?: string;
-
-    @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
-    @JoinColumn({ name: 'assignedCollectorId' })
-    assignedCollector?: User;
 
     @Column({ type: 'text', nullable: true })
     imageEvidenceUrl?: string;

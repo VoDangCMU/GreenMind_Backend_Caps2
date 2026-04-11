@@ -3,6 +3,8 @@ import AppDataSource from '../infrastructure/database';
 import { WasteReport, WasteReportStatus, WasteType } from '../entity/waste_report';
 import { User } from '../entity/user';
 import { validate as isUUID } from 'uuid';
+import axios from 'axios';
+import FormData from 'form-data';
 
 const VALID_WASTE_TYPES = Object.values(WasteType) as string[];
 
@@ -30,7 +32,7 @@ class WasteReportController {
                 return;
             }
 
-            const { wasteType, wardName, lat, lng, wasteKg, description, imageKey, imageUrl } = req.body;
+            const { wasteType, wardName, lat, lng, description, imageUrl } = req.body;
             if (!wasteType || !VALID_WASTE_TYPES.includes(wasteType)) {
                 res.status(400).json({ message: `wasteType must be one of: ${VALID_WASTE_TYPES.join(', ')}` });
                 return;
@@ -53,22 +55,74 @@ class WasteReportController {
 
             const reportRepo = getReportRepo();
             const code = await generateReportCode();
+
+            let segmentedImageUrl: string | undefined;
+            let depthImageUrl: string | undefined;
+            let heatmapUrl: string | undefined;
+            let segmentRatio: number | undefined;
+            let pollutionScore: number | undefined;
+            let pollutionLevel: string | undefined;
+
+            if (imageUrl) {
+                try {
+                    const imageResponse = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+                    const buffer = Buffer.from(imageResponse.data, 'binary');
+
+                    const formData = new FormData();
+                    formData.append('file', buffer, { filename: 'image.jpg', contentType: 'image/jpeg' });
+
+                    console.log(`[AI-Detect] Sending image to AI prediction API...`);
+                    const aiResponse = await axios.post('https://ai-greenmind.khoav4.com/predict_trash_seg', formData, {
+                        headers: formData.getHeaders()
+                    });
+
+                    if (aiResponse.data) {
+                        segmentedImageUrl = aiResponse.data.segment_image_url;
+                        depthImageUrl = aiResponse.data.depth_image_url;
+                        heatmapUrl = aiResponse.data.heatmap_url;
+                        segmentRatio = aiResponse.data.segment_ratio;
+                        pollutionScore = aiResponse.data.pollution_score;
+                        pollutionLevel = aiResponse.data.pollution_level;
+                        console.log(`[AI-Detect] Success. Segment ratio: ${segmentRatio}`);
+                    }
+                } catch (aiError) {
+                    console.error('[AI-Detect] Error calling prediction API:', aiError);
+                }
+            }
+
             const newReport = reportRepo.create({
                 code,
                 wasteType: wasteType as WasteType,
                 wardName: wardName.trim(),
                 lat: parsedLat,
                 lng: parsedLng,
-                wasteKg: wasteKg !== undefined ? parseFloat(wasteKg) : undefined,
                 description: description ?? undefined,
                 imageUrl: imageUrl ?? undefined,
+                segmentedImageUrl,
+                depthImageUrl,
+                heatmapUrl,
+                segmentRatio,
+                pollutionScore,
+                pollutionLevel,
                 reportedByUserId: userId,
                 status: WasteReportStatus.PENDING,
             });
 
             const created = await reportRepo.save(newReport);
 
-            res.status(200).json(created);
+            let aiMessage = "Report created successfully.";
+            if (imageUrl) {
+                if (segmentedImageUrl && segmentRatio !== undefined) {
+                    aiMessage = "Report created successfully with AI analysis.";
+                } else {
+                    aiMessage = "Report created successfully. AI analysis failed.";
+                }
+            }
+
+            res.status(200).json({
+                message: aiMessage,
+                data: created
+            });
             return;
         } catch (error) {
             res.status(500).json({ message: 'Internal server error' });
@@ -153,7 +207,7 @@ class WasteReportController {
                 return res.status(400).json({ message: 'Invalid reportId' });
             }
 
-            const { wasteType, wasteKg, description, imageUrl } = req.body;
+            const { wasteType, description, imageUrl } = req.body;
 
             if (wasteType && !VALID_WASTE_TYPES.includes(wasteType)) {
                 res.status(400).json({ message: `wasteType must be one of: ${VALID_WASTE_TYPES.join(', ')}` });
@@ -177,7 +231,6 @@ class WasteReportController {
             }
 
             if (wasteType) report.wasteType = wasteType as WasteType;
-            if (wasteKg !== undefined) report.wasteKg = parseFloat(wasteKg);
             if (description !== undefined) report.description = description;
             if (imageUrl !== undefined) report.imageUrl = imageUrl;
 
@@ -238,7 +291,6 @@ class WasteReportController {
             const qb = reportRepo
                 .createQueryBuilder('wr')
                 .leftJoinAndSelect('wr.reportedBy', 'reporter')
-                .leftJoinAndSelect('wr.assignedCollector', 'collector')
                 .orderBy('wr.createdAt', 'DESC')
                 .skip((pageNum - 1) * limitNum)
                 .take(limitNum);
@@ -254,16 +306,19 @@ class WasteReportController {
                 status: r.status,
                 wardName: r.wardName,
                 imageUrl: r.imageUrl,
+                segmentedImageUrl: r.segmentedImageUrl,
+                depthImageUrl: r.depthImageUrl,
+                heatmapUrl: r.heatmapUrl,
+                segmentRatio: r.segmentRatio,
+                pollutionScore: r.pollutionScore,
+                pollutionLevel: r.pollutionLevel,
                 imageEvidenceUrl: r.imageEvidenceUrl,
                 lat: r.lat,
                 lng: r.lng,
-                wasteKg: r.wasteKg,
                 wasteType: r.wasteType,
                 description: r.description,
                 reportedBy: r.reportedBy?.fullName ?? null,
                 reportedByUserId: r.reportedByUserId,
-                assignedTo: r.assignedCollector?.fullName ?? null,
-                collectorId: r.assignedCollectorId ?? null,
                 createdAt: r.createdAt,
                 resolvedAt: r.resolvedAt ?? null,
             }));
@@ -277,331 +332,13 @@ class WasteReportController {
         }
     };
 
-    public getCollectors: RequestHandler = async (req: Request, res: Response) => {
-        try {
-            const { page = '1', limit = '50' } = req.query as Record<string, string>;
-            const pageNum = Math.max(1, parseInt(page) || 1);
-            const limitNum = Math.max(1, Math.min(parseInt(limit) || 50, 100));
-
-            const userRepo = AppDataSource.getRepository(User);
-            const [collectors, total] = await userRepo.findAndCount({
-                where: { role: 'collector' },
-                select: ['id', 'fullName', 'email', 'phoneNumber'],
-                order: { fullName: 'ASC' },
-                skip: (pageNum - 1) * limitNum,
-                take: limitNum,
-            });
-
-            const reportRepo = getReportRepo();
-            const data = await Promise.all(
-                collectors.map(async (c) => {
-                    const activeCount = await reportRepo.count({
-                        where: {
-                            assignedCollectorId: c.id,
-                            status: WasteReportStatus.ASSIGNED,
-                        },
-                    });
-                    return {
-                        id: c.id,
-                        fullName: c.fullName,
-                        email: c.email,
-                        phoneNumber: c.phoneNumber ?? null,
-                        activeReports: activeCount,
-                    };
-                })
-            );
-
-            res.status(200).json({ data, total, page: pageNum, limit: limitNum });
-            return;
-        } catch (error) {
-            res.status(500).json({ message: 'Internal server error' });
-            return;
-        }
-    };
-
-    public assignCollector: RequestHandler = async (req: Request, res: Response) => {
-        try {
-            const { collectorId } = req.body;
-            if (!collectorId) {
-                res.status(400).json({ message: 'collectorId is required' });
-                return;
-            }
-
-            const userRepo = AppDataSource.getRepository(User);
-            const collector = await userRepo.findOneBy({ id: collectorId });
-            if (!collector) {
-                res.status(404).json({ message: 'Collector not found' });
-                return;
-            }
-            if (collector.role !== 'collector') {
-                res.status(400).json({ message: 'The specified user is not a collector' });
-                return;
-            }
-
-            const reportRepo = getReportRepo();
-            const report = await reportRepo.findOne({
-                where: { id: req.params.reportId },
-                relations: ['reportedBy'],
-            });
-            if (!report) {
-                res.status(404).json({ message: 'Waste report not found' });
-                return;
-            }
-            if (report.status !== WasteReportStatus.PENDING) {
-                res.status(400).json({ message: 'Can only assign collector to a pending report' });
-                return;
-            }
-
-            report.assignedCollectorId = collectorId;
-            report.status = WasteReportStatus.ASSIGNED;
-
-            const updated = await reportRepo.save(report);
-
-            res.status(200).json(updated);
-            return;
-        } catch (error) {
-            res.status(500).json({ message: 'Internal server error' });
-            return;
-        }
-    };
-
-    public getReportsByCollector: RequestHandler = async (req: Request, res: Response) => {
-        try {
-            const { collectorId } = req.params;
-            const { status, page = '1', limit = '10' } = req.query as Record<string, string>;
-            const pageNum = Math.max(1, parseInt(page) || 1);
-            const limitNum = Math.max(1, Math.min(parseInt(limit) || 10, 100));
-
-            const userRepo = AppDataSource.getRepository(User);
-            const collector = await userRepo.findOneBy({ id: collectorId });
-            if (!collector) {
-                res.status(404).json({ message: 'Collector not found' });
-                return;
-            }
-
-            const reportRepo = getReportRepo();
-            const qb = reportRepo
-                .createQueryBuilder('wr')
-                .leftJoinAndSelect('wr.reportedBy', 'reporter')
-                .where('wr.assignedCollectorId = :collectorId', { collectorId })
-                .orderBy('wr.createdAt', 'DESC')
-                .skip((pageNum - 1) * limitNum)
-                .take(limitNum);
-
-            if (status) qb.andWhere('wr.status = :status', { status });
-
-            const [rawData, total] = await qb.getManyAndCount();
-
-            const data = rawData.map((r) => ({
-                id: r.id,
-                code: r.code,
-                status: r.status,
-                wardName: r.wardName,
-                lat: r.lat,
-                lng: r.lng,
-                wasteKg: r.wasteKg,
-                wasteType: r.wasteType,
-                description: r.description,
-                imageUrl: r.imageUrl,
-                imageEvidenceUrl: r.imageEvidenceUrl,
-                reportedByUserId: r.reportedByUserId ?? null,
-                reportedBy: r.reportedBy?.fullName ?? null,
-                createdAt: r.createdAt,
-                resolvedAt: r.resolvedAt ?? null,
-            }));
-
-            res.status(200).json({
-                collector: { id: collector.id, fullName: collector.fullName },
-                data,
-                total,
-                page: pageNum,
-                limit: limitNum,
-            });
-            return;
-        } catch (error) {
-            res.status(500).json({ message: 'Internal server error' });
-            return;
-        }
-    };
-
-    public getAssignedReports: RequestHandler = async (req: Request, res: Response) => {
-        try {
-            const collectorId = req.user?.userId;
-            if (!collectorId) { res.status(401).json({ message: 'Unauthorized' }); return; }
-
-            const { status, page = '1', limit = '10' } = req.query as Record<string, string>;
-            const pageNum = Math.max(1, parseInt(page) || 1);
-            const limitNum = Math.max(1, Math.min(parseInt(limit) || 10, 100));
-
-            const validStatuses = [WasteReportStatus.ASSIGNED, WasteReportStatus.DONE] as string[];
-            if (status && !validStatuses.includes(status)) {
-                res.status(400).json({ message: `status must be one of: ${validStatuses.join(', ')}` }); return;
-            }
-
-            const reportRepo = getReportRepo();
-            const qb = reportRepo
-                .createQueryBuilder('wr')
-                .leftJoinAndSelect('wr.reportedBy', 'reporter')
-                .where('wr.assignedCollectorId = :collectorId', { collectorId })
-                .orderBy('wr.createdAt', 'DESC')
-                .skip((pageNum - 1) * limitNum)
-                .take(limitNum);
-
-            if (status) qb.andWhere('wr.status = :status', { status });
-
-            const [rawData, total] = await qb.getManyAndCount();
-
-            const data = rawData.map((r) => ({
-                id: r.id,
-                code: r.code,
-                reportedBy: r.reportedBy?.fullName ?? null,
-                lat: r.lat,
-                lng: r.lng,
-                wasteKg: r.wasteKg,
-                wasteType: r.wasteType,
-                description: r.description,
-                imageUrl: r.imageUrl,
-                imageEvidenceUrl: r.imageEvidenceUrl,
-                status: r.status,
-                createdAt: r.createdAt,
-                resolvedAt: r.resolvedAt ?? null,
-            }));
-
-            res.status(200).json({ data, total });
-            return;
-        } catch (error) {
-            res.status(500).json({ message: 'Internal server error' });
-            return;
-        }
-    };
-
-    public getAssignedReportById: RequestHandler = async (req: Request, res: Response) => {
-        try {
-            const collectorId = req.user?.userId;
-            if (!collectorId) { res.status(401).json({ message: 'Unauthorized' }); return; }
-
-            const reportRepo = getReportRepo();
-            const report = await reportRepo.findOne({
-                where: { id: req.params.id },
-                relations: ['reportedBy'],
-            });
-
-            if (!report) { res.status(404).json({ message: 'Waste report not found' }); return; }
-
-            if (report.assignedCollectorId !== collectorId) {
-                res.status(403).json({ message: 'Forbidden: this report is not assigned to you' }); return;
-            }
-
-            res.status(200).json(report);
-            return;
-        }
-        catch (error) {
-            res.status(500).json({ message: 'Internal server error' });
-            return;
-        }
-    };
-
-    public markReportDone: RequestHandler = async (req: Request, res: Response) => {
-        const collectorId = req.user?.userId;
-        if (!collectorId) { res.status(401).json({ message: 'Unauthorized' }); return; }
-
-        const { status } = req.body;
-
-        if (status !== WasteReportStatus.DONE) {
-            res.status(400).json({ message: 'status must be "done"' }); return;
-        }
-
-        const reportRepo = getReportRepo();
-        const report = await reportRepo.findOneBy({ id: req.params.id });
-
-        if (!report) {
-            res.status(404).json({ message: 'Waste report not found' });
-            return;
-        }
-
-        if (report.assignedCollectorId !== collectorId) {
-            res.status(403).json({ message: 'Forbidden: this report is not assigned to you' });
-            return;
-        }
-        if (report.status !== WasteReportStatus.ASSIGNED) {
-            res.status(400).json({ message: 'Can only mark an assigned report as done' });
-            return;
-        }
-
-        report.status = WasteReportStatus.DONE;
-        report.resolvedAt = new Date();
-
-        const updated = await reportRepo.save(report);
-
-        res.status(200).json({
-            id: updated.id,
-            status: updated.status,
-            resolvedAt: updated.resolvedAt,
-        });
-        return;
-    };
-
-    public updateReportStatus: RequestHandler = async (req: Request, res: Response) => {
-        try {
-            const collectorId = req.user?.userId;
-            if (!collectorId) {
-                res.status(401).json({ message: 'Unauthorized' });
-                return;
-            }
-
-            const { status, imageEvidenceUrl } = req.body;
-            const allowedStatuses = [WasteReportStatus.DONE] as string[];
-
-            if (!status || !allowedStatuses.includes(status)) {
-                res.status(400).json({ message: `status must be one of: ${allowedStatuses.join(', ')}` });
-                return;
-            }
-
-            if (!imageEvidenceUrl || typeof imageEvidenceUrl !== 'string' || imageEvidenceUrl.trim() === '') {
-                res.status(400).json({ message: 'imageEvidenceUrl is required when marking report as done' });
-                return;
-            }
-
-            const reportRepo = getReportRepo();
-            const report = await reportRepo.findOne({
-                where: { id: req.params.id },
-                relations: ['reportedBy'],
-            });
-
-            if (!report) {
-                res.status(404).json({ message: 'Waste report not found' });
-                return;
-            }
-            if (report.assignedCollectorId !== collectorId) {
-                res.status(403).json({ message: 'Forbidden: this report is not assigned to you' });
-                return;
-            }
-            if (report.status !== WasteReportStatus.ASSIGNED) {
-                res.status(400).json({ message: 'Can only update status of an assigned report' });
-                return;
-            }
-
-            report.status = status as WasteReportStatus;
-            report.imageEvidenceUrl = imageEvidenceUrl.trim();
-            report.resolvedAt = new Date();
-
-            const updated = await reportRepo.save(report);
-
-            res.status(200).json(updated);
-            return;
-        } catch (error) {
-            res.status(500).json({ message: 'Internal server error' });
-            return;
-        }
-    };
-
     public getLeaderboard: RequestHandler = async (req: Request, res: Response) => {
         try {
             const rows = await getReportRepo()
                 .createQueryBuilder('wr')
                 .select('wr.reportedByUserId', 'userId')
-                .addSelect('u.fullName',  'fullName')
-                .addSelect('u.username',  'username')
+                .addSelect('u.fullName', 'fullName')
+                .addSelect('u.username', 'username')
                 .addSelect('COUNT(wr.id)', 'reportCount')
                 .innerJoin(User, 'u', 'u.id = wr.reportedByUserId')
                 .where('wr.reportedByUserId IS NOT NULL')
@@ -613,10 +350,10 @@ class WasteReportController {
                 .getRawMany();
 
             const data = rows.map((row, index) => ({
-                rank:        index + 1,
-                userId:      row.userId,
-                fullName:    row.fullName,
-                username:    row.username,
+                rank: index + 1,
+                userId: row.userId,
+                fullName: row.fullName,
+                username: row.username,
                 reportCount: parseInt(row.reportCount, 10),
             }));
 
