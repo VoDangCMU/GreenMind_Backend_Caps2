@@ -23,6 +23,7 @@ import checkin from "./checkinController";
 import household from "./householdController";
 import wasteReport from "./wasteReportController";
 import detectTrash from "./detectController";
+import greenScore from "./greenScoreController";
 export default {
     behavior,
     behaviorFeedback,
@@ -48,5 +49,6 @@ export default {
     checkin,
     household,
     wasteReport,
-    detectTrash
+    detectTrash,
+    greenScore,
 };
