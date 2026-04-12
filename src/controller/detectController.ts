@@ -1,10 +1,10 @@
 import AppDataSource from "../infrastructure/database";
-import { User } from "../entity/user";
+import { User, UserRole } from "../entity/user";
 import { Household } from "../entity/household";
 import { RequestHandler } from "express";
 import axios from "axios";
 import FormData from "form-data";
-import { DETECT_TYPE, WasteDetection } from "../entity/WasteDetection";
+import { DETECT_TYPE, WasteDetection, STATUS } from "../entity/WasteDetection";
 
 const WasteDetectionRepository = AppDataSource.getRepository("WasteDetection");
 const UserRepository = AppDataSource.getRepository(User);
@@ -66,6 +66,7 @@ export class DetectTrashController {
                 detectedBy: user,
                 household: user?.household,
                 detectType: DETECT_TYPE.DETECT_TRASH,
+                status: STATUS.DETECTED,
                 householdId: user?.householdId,
                 aiAnalysis: result.data.image_url,
             });
@@ -227,6 +228,116 @@ export class DetectTrashController {
             return res.status(200).json({ message: "Detection history retrieved successfully", data: detections });
         } catch (error) {
             res.status(500).json({ error: "Internal server error" });
+        }
+    }
+
+    public markBringOut: RequestHandler = async (req: any, res: any) => {
+        try {
+            const userId = req.user?.userId;
+            if (!userId) {
+                return res.status(401).json({ error: "Unauthorized" });
+            }
+
+            const user = await UserRepository.findOne({
+                where: { id: userId },
+                relations: { household: true }
+            });
+
+            if (!user || !user.household) {
+                return res.status(404).json({ error: "Household not found" });
+            }
+
+            const detectionId = req.params.id;
+            if (!detectionId) {
+                return res.status(400).json({ error: "Detection ID is required" });
+            }
+
+            const detection = await WasteDetectionRepository.findOne({
+                where: { id: detectionId, householdId: user.householdId },
+                relations: { household: true }
+            });
+
+            if (!detection) {
+                return res.status(404).json({ error: "Waste detection record not found" });
+            }
+
+            if (detection.detectType !== DETECT_TYPE.DETECT_TRASH) {
+                return res.status(400).json({ error: "Only detections of type 'DETECT_TRASH' can be marked as brought out" });
+            }
+            if (detection.status === STATUS.BROUGHT_OUT) {
+                return res.status(400).json({ error: "Trash has already been marked as brought out" });
+            }
+
+            if (detection.status === STATUS.PICKED_UP) {
+                return res.status(400).json({ error: "Trash has already been picked up" });
+            }
+
+            detection.status = STATUS.BROUGHT_OUT;
+            await WasteDetectionRepository.save(detection);
+
+            return res.status(200).json({ message: "Trash marked as brought out", data: detection });
+        } catch (error) {
+            return res.status(500).json({ error: "Internal server error" });
+        }
+    }
+
+    public getPendingPickups: RequestHandler = async (req: any, res: any) => {
+        try {
+            const userId = req.user?.userId;
+            if (!userId) {
+                return res.status(401).json({ error: "Unauthorized" });
+            }
+
+            const detections = await WasteDetectionRepository.find({
+                where: { status: STATUS.BROUGHT_OUT },
+                relations: { household: true, detectedBy: true },
+                order: { createdAt: "DESC" }
+            });
+
+            return res.status(200).json({ message: "Pending pickups retrieved successfully", data: detections });
+        } catch (error) {
+            return res.status(500).json({ error: "Internal server error" });
+        }
+    }
+
+    public pickupWaste: RequestHandler = async (req: any, res: any) => {
+        try {
+            const userId = req.user?.userId;
+            if (!userId) {
+                return res.status(401).json({ error: "Unauthorized" });
+            }
+
+            const detectionId = req.params.id;
+            const imageUrl = req.body.imageUrl;
+
+            if (!detectionId) {
+                return res.status(400).json({ error: "Detection ID is required" });
+            }
+
+            if (!imageUrl) {
+                return res.status(400).json({ error: "Proof image URL is required" });
+            }
+
+            const detection = await WasteDetectionRepository.findOne({
+                where: { id: detectionId, status: STATUS.BROUGHT_OUT },
+                relations: { household: true }
+            });
+
+            if (!detection) {
+                return res.status(404).json({ error: "Waste detection record not found or not ready for pickup" });
+            }
+
+            detection.status = STATUS.PICKED_UP;
+            detection.pickupProofImageUrl = imageUrl;
+            detection.pickedUpAt = new Date();
+            detection.collectorId = userId;
+            detection.collectedBy = await UserRepository.findOne({ where: { id: userId } });
+
+            await WasteDetectionRepository.save(detection);
+
+            return res.status(200).json({ message: "Pickup confirmed successfully", data: detection });
+        } catch (error) {
+            return res.status(500).json({ error: "Internal server error" });
         }
     }
 
