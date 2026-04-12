@@ -54,11 +54,11 @@ router.use("/checkins", checkinRouter);
 router.use("/media", mediaRouter);
 router.use("/waste-reports", wasteReportRouter);
 router.use("/households", householdRouter);
-router.use("/collectors", collectorRouter);
 router.use("/waste-monitoring", wasteMonitoringRouter);
 router.use("/environmental-impact", environmentalImpactRouter);
 router.use("/blogs", blogRouter);
 router.use("/campaigns", campaignRouter);
 router.use("/participant-campaigns", participantCampaignRouter);
+router.use("/collectors", collectorRouter);
 
 export default router;
