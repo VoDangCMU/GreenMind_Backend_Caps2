@@ -14,6 +14,13 @@ export enum DETECT_TYPE {
     PREDICT_POLLUTANT = 'predict_pollutant_impact',
     TOTAL_MASS = 'total_mass'
 }
+
+export enum STATUS {
+    DETECTED = 'detected',
+    BROUGHT_OUT = 'brought_out',
+    PICKED_UP = 'picked_up'
+}
+
 const WASTE_DETECTION_TABLE_NAME = 'waste_detection';
 
 @Entity(WASTE_DETECTION_TABLE_NAME)
@@ -61,6 +68,22 @@ export class WasteDetection {
 
     @Column({ type: 'enum', enum: DETECT_TYPE, nullable: true })
     detectType?: DETECT_TYPE;
+
+    @Column({ type: 'enum', enum: STATUS, nullable: true })
+    status!: STATUS;
+
+    @Column({ type: 'text', nullable: true })
+    pickupProofImageUrl?: string;
+
+    @Column({ type: 'uuid', nullable: true })
+    collectorId?: string;
+
+    @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
+    @JoinColumn({ name: 'collectorId' })
+    collectedBy?: User;
+
+    @Column({ type: 'timestamp', nullable: true })
+    pickedUpAt?: Date;
 
     @CreateDateColumn()
     createdAt!: Date;
