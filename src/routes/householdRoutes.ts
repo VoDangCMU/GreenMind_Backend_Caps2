@@ -25,4 +25,6 @@ router.post("/detect-trash/:id/bring-out", DetectTrashController.markBringOut);
 router.get("/get-detect-by-household/:id", DetectTrashController.getHouseholdById);
 router.get("/detect-trash/:type", DetectTrashController.getDetectionByType);
 router.delete("/:id", HouseholdController.deleteHouseholdMembers);
+router.get("/detects", DetectTrashController.getAllDetections);
+router.get("/detects/:type", DetectTrashController.getAllDetectionByType);
 export default router;

@@ -431,5 +431,78 @@ export class DetectTrashController {
             res.status(500).json({ error: "Internal server error" });
         }
     }
+
+    public getAllDetections: RequestHandler = async (req: any, res: any) => {
+        try {
+            const detections = await WasteDetectionRepository.find({
+                relations: { detectedBy: true, household: true },
+                order: { createdAt: "DESC" },
+                select: {
+                    household: { id: true, address: true, lat: true, lng: true },
+                    detectedBy: { id: true, fullName: true }
+                }
+            });
+            return res.status(200).json({ message: "Detection history retrieved successfully", data: detections });
+        } catch (error) {
+            res.status(500).json({ error: "Internal server error" });
+        }
+    }
+
+    public getAllDetectionByType: RequestHandler = async (req: any, res: any) => {
+        try {
+            const { type } = req.params;
+            if (!type || !Object.values(DETECT_TYPE).includes(type as DETECT_TYPE)) {
+                return res.status(400).json({ error: "Invalid detection type" });
+            }
+            const detections = await WasteDetectionRepository.find({
+                where: { detectType: type as DETECT_TYPE },
+                relations: { detectedBy: true, household: true },
+                order: { createdAt: "DESC" },
+                select: {
+                    household: { id: true, address: true, lat: true, lng: true },
+                    detectedBy: { id: true, fullName: true }
+                }
+            });
+            return res.status(200).json({ message: "Detection history retrieved successfully", data: detections });
+        } catch (error) {
+            res.status(500).json({ error: "Internal server error" });
+        }
+    }
+
+    public collectorHistory: RequestHandler = async (req: any, res: any) => {
+        try {
+            const userId = req.user?.userId;
+            if (!userId) {
+                return res.status(401).json({ error: "Unauthorized" });
+            }
+            const detections = await WasteDetectionRepository.find({
+                where: { collectorId: userId, status: STATUS.PICKED_UP },
+                relations: { detectedBy: true, household: true },
+                order: { createdAt: "DESC" }
+            });
+
+            return res.status(200).json({ message: "Collector history retrieved successfully", data: detections });
+        } catch (error) {
+            res.status(500).json({ error: "Internal server error" });
+        }
+    }
+
+    public getAllPickedUp: RequestHandler = async (req: any, res: any) => {
+        try {
+            const userId = req.user?.userId;
+            if (!userId) {
+                return res.status(401).json({ error: "Unauthorized" });
+            }
+            const detections = await WasteDetectionRepository.find({
+                where: { status: STATUS.PICKED_UP },
+                relations: { detectedBy: true, household: true },
+                order: { createdAt: "DESC" }
+            });
+            return res.status(200).json({ message: "Detection history retrieved successfully", data: detections });
+        } catch (error) {
+            res.status(500).json({ error: "Internal server error" });
+        }
+    }
+
 }
 export default new DetectTrashController();
