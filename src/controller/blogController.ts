@@ -1,6 +1,6 @@
 import { Request, Response, RequestHandler } from 'express';
 import AppDataSource from '../infrastructure/database';
-import { Blog, BlogLike } from '../entity/blog';
+import { Blog, BlogLike, BlogComment } from '../entity/blog';
 import { User } from '../entity/user';
 
 function getBlogRepo() {
@@ -9,6 +9,10 @@ function getBlogRepo() {
 
 function getLikeRepo() {
     return AppDataSource.getRepository(BlogLike);
+}
+
+function getCommentRepo() {
+    return AppDataSource.getRepository(BlogComment);
 }
 
 class BlogController {
@@ -116,7 +120,7 @@ class BlogController {
 
             const blog = await getBlogRepo().findOne({
                 where: { id: req.params.id },
-                relations: ['author'],
+                relations: ['author', 'comments', 'comments.user'],
             });
 
             if (!blog) { res.status(404).json({ message: 'Blog not found' }); return; }
@@ -127,6 +131,11 @@ class BlogController {
                 isLiked = !!existing;
             }
 
+            // Sort comments oldest-first
+            const comments = (blog.comments ?? []).sort(
+                (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+            );
+
             res.status(200).json({
                 message: 'Blog retrieved successfully',
                 data: {
@@ -135,11 +144,21 @@ class BlogController {
                     content: blog.content,
                     tags: blog.tags ?? [],
                     like_count: blog.like_count,
+                    comment_count: blog.comment_count,
                     author_id: blog.author_id,
                     author: blog.author
                         ? { id: blog.author.id, username: blog.author.username, fullName: blog.author.fullName }
                         : null,
                     ...(userId !== undefined ? { isLiked } : {}),
+                    comments: comments.map((c) => ({
+                        id: c.id,
+                        content: c.content,
+                        createdAt: c.createdAt,
+                        updatedAt: c.updatedAt,
+                        user: c.user
+                            ? { id: c.user.id, username: c.user.username, fullName: c.user.fullName }
+                            : null,
+                    })),
                     createdAt: blog.createdAt,
                     updatedAt: blog.updatedAt,
                 },
@@ -299,6 +318,129 @@ class BlogController {
             });
         } catch (error) {
             console.error('[getBlogLikes]', error);
+            res.status(500).json({ message: 'Internal server error' });
+        }
+    };
+
+    // POST /blogs/:id/comments
+    public addComment: RequestHandler = async (req: Request, res: Response) => {
+        try {
+            const userId = req.user?.userId;
+            if (!userId) { res.status(401).json({ message: 'Unauthorized' }); return; }
+
+            const blogRepo = getBlogRepo();
+            const blog = await blogRepo.findOneBy({ id: req.params.id });
+            if (!blog) { res.status(404).json({ message: 'Blog not found' }); return; }
+
+            const { content } = req.body;
+            if (!content || typeof content !== 'string' || content.trim() === '') {
+                res.status(400).json({ message: 'Comment content is required' });
+                return;
+            }
+
+            const commentRepo = getCommentRepo();
+            const comment = await commentRepo.save(
+                commentRepo.create({
+                    content: content.trim(),
+                    userId,
+                    blogId: blog.id,
+                })
+            );
+
+            // increment comment_count
+            blog.comment_count += 1;
+            await blogRepo.save(blog);
+
+            // load user info
+            const saved = await commentRepo.findOne({
+                where: { id: comment.id },
+                relations: ['user'],
+            });
+
+            res.status(201).json({
+                message: 'Comment added successfully',
+                data: {
+                    id: saved!.id,
+                    content: saved!.content,
+                    createdAt: saved!.createdAt,
+                    user: saved!.user
+                        ? { id: saved!.user.id, username: saved!.user.username, fullName: saved!.user.fullName }
+                        : null,
+                },
+            });
+        } catch (error) {
+            console.error('[addComment]', error);
+            res.status(500).json({ message: 'Internal server error' });
+        }
+    };
+
+    // PUT /blogs/:id/comments/:commentId
+    public updateComment: RequestHandler = async (req: Request, res: Response) => {
+        try {
+            const userId = req.user?.userId;
+            if (!userId) { res.status(401).json({ message: 'Unauthorized' }); return; }
+
+            const commentRepo = getCommentRepo();
+            const comment = await commentRepo.findOne({
+                where: { id: req.params.commentId, blogId: req.params.id },
+                relations: ['user'],
+            });
+
+            if (!comment) { res.status(404).json({ message: 'Comment not found' }); return; }
+            if (comment.userId !== userId) { res.status(403).json({ message: 'You can only edit your own comments' }); return; }
+
+            const { content } = req.body;
+            if (!content || typeof content !== 'string' || content.trim() === '') {
+                res.status(400).json({ message: 'Comment content is required' });
+                return;
+            }
+
+            comment.content = content.trim();
+            const updated = await commentRepo.save(comment);
+
+            res.status(200).json({
+                message: 'Comment updated successfully',
+                data: {
+                    id: updated.id,
+                    content: updated.content,
+                    createdAt: updated.createdAt,
+                    updatedAt: updated.updatedAt,
+                    user: updated.user
+                        ? { id: updated.user.id, username: updated.user.username, fullName: updated.user.fullName }
+                        : null,
+                },
+            });
+        } catch (error) {
+            console.error('[updateComment]', error);
+            res.status(500).json({ message: 'Internal server error' });
+        }
+    };
+
+    // DELETE /blogs/:id/comments/:commentId
+    public deleteComment: RequestHandler = async (req: Request, res: Response) => {
+        try {
+            const userId = req.user?.userId;
+            if (!userId) { res.status(401).json({ message: 'Unauthorized' }); return; }
+
+            const commentRepo = getCommentRepo();
+            const comment = await commentRepo.findOneBy({ id: req.params.commentId, blogId: req.params.id });
+
+            if (!comment) { res.status(404).json({ message: 'Comment not found' }); return; }
+            if (comment.userId !== userId) { res.status(403).json({ message: 'You can only delete your own comments' }); return; }
+
+            await commentRepo.remove(comment);
+
+            // decrement comment_count
+            const blogRepo = getBlogRepo();
+            const blog = await blogRepo.findOneBy({ id: req.params.id });
+            if (blog) {
+                blog.comment_count = Math.max(0, blog.comment_count - 1);
+                await blogRepo.save(blog);
+            }
+
+            res.status(200).json({ message: 'Comment deleted successfully' });
+        } catch (error) {
+            console.error('[deleteComment]', error);
             res.status(500).json({ message: 'Internal server error' });
         }
     };
