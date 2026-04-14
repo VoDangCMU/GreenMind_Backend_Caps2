@@ -6,6 +6,7 @@ export const WASTE_REPORTS_TABLE_NAME = 'waste_reports';
 
 export enum WasteReportStatus {
     PENDING = 'pending',
+    APPROVED = 'approved',
     DONE = 'done',
 }
 
