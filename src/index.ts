@@ -6,14 +6,17 @@ import { initInfrastructure } from "./infrastructure";
 import controller from "./controller";
 import { corsMiddleware, devCorsMiddleware } from "./middlewares/corsMiddleware";
 import swaggerSpec from "./config/swagger";
+import { registerCampaignScheduler } from "./runner/campaignScheduler";
+
 
 async function startServer() {
     try {
         await initInfrastructure();
 
+        registerCampaignScheduler();
+
         const app = express();
 
-        // Apply CORS middleware first (before other middleware)
         if (config.app.env === 'development') {
             app.use(devCorsMiddleware);
         } else {
