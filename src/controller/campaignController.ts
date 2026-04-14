@@ -66,7 +66,7 @@ class CampaignController {
                 const reportRepo = getReportRepo();
                 await reportRepo.update(
                     { id: In(reportIds) },
-                    { campaignId: savedCampaign.id }
+                    { campaignId: savedCampaign.id, status: WasteReportStatus.APPROVED }
                 );
             }
 
