@@ -13,6 +13,7 @@ import { User } from './user';
 
 export const BLOGS_TABLE_NAME = 'blogs';
 export const BLOG_LIKES_TABLE_NAME = 'blog_likes';
+export const BLOG_COMMENTS_TABLE_NAME = 'blog_comments';
 
 @Entity(BLOGS_TABLE_NAME)
 export class Blog {
@@ -31,6 +32,9 @@ export class Blog {
     @Column({ type: 'int', default: 0 })
     like_count!: number;
 
+    @Column({ type: 'int', default: 0 })
+    comment_count!: number;
+
     @Index()
     @Column({ type: 'uuid', nullable: true })
     author_id?: string;
@@ -41,6 +45,9 @@ export class Blog {
 
     @OneToMany(() => BlogLike, (like) => like.blog)
     likes?: BlogLike[];
+
+    @OneToMany(() => BlogComment, (comment) => comment.blog)
+    comments?: BlogComment[];
 
     @CreateDateColumn({ type: 'timestamp' })
     createdAt!: Date;
@@ -71,4 +78,33 @@ export class BlogLike {
 
     @CreateDateColumn({ type: 'timestamp' })
     createdAt!: Date;
+}
+
+@Entity(BLOG_COMMENTS_TABLE_NAME)
+export class BlogComment {
+    @PrimaryGeneratedColumn('uuid')
+    id!: string;
+
+    @Column({ type: 'text' })
+    content!: string;
+
+    @Column({ type: 'uuid' })
+    userId!: string;
+
+    @ManyToOne(() => User, { onDelete: 'CASCADE' })
+    @JoinColumn({ name: 'userId' })
+    user?: User;
+
+    @Column({ type: 'uuid' })
+    blogId!: string;
+
+    @ManyToOne(() => Blog, (blog) => blog.comments, { onDelete: 'CASCADE' })
+    @JoinColumn({ name: 'blogId' })
+    blog?: Blog;
+
+    @CreateDateColumn({ type: 'timestamp' })
+    createdAt!: Date;
+
+    @UpdateDateColumn({ type: 'timestamp' })
+    updatedAt!: Date;
 }
