@@ -11,5 +11,7 @@ router.put('/:id', jwtAuthMiddleware, campaignController.updateCampaign);
 router.delete('/:id', jwtAuthMiddleware, campaignController.deleteCampaign);
 
 router.post('/:id/status', jwtAuthMiddleware, campaignController.updateCampaignStatus);
+router.post('/:id/cancel', jwtAuthMiddleware, campaignController.cancelCampaign);
 
 export default router;
+

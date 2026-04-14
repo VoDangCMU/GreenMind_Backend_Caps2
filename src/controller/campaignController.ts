@@ -3,6 +3,7 @@ import AppDataSource from '../infrastructure/database';
 import { Campaign, CampaignStatus } from '../entity/campaign';
 import { CampaignParticipant, ParticipantStatus } from '../entity/campaign_participants';
 import { WasteReport, WasteReportStatus } from '../entity/waste_report';
+import { User } from '../entity/user';
 import { In } from 'typeorm';
 import { validate as isUUID } from 'uuid';
 
@@ -16,6 +17,10 @@ function getParticipantRepo() {
 
 function getReportRepo() {
     return AppDataSource.getRepository(WasteReport);
+}
+
+function getUserRepo() {
+    return AppDataSource.getRepository(User);
 }
 
 
@@ -37,6 +42,12 @@ class CampaignController {
             const userId = req.user?.userId;
             if (!userId) {
                 res.status(401).json({ message: 'Unauthorized' });
+                return;
+            }
+
+            const userExists = await getUserRepo().existsBy({ id: userId });
+            if (!userExists) {
+                res.status(401).json({ message: 'Authenticated user not found in database. Please log in again.' });
                 return;
             }
 
@@ -464,6 +475,53 @@ class CampaignController {
             return;
         } catch (error) {
             console.error('[updateCampaignStatus]', error);
+            res.status(500).json({ message: 'Internal server error' });
+            return;
+        }
+    };
+
+    public cancelCampaign: RequestHandler = async (req: Request, res: Response) => {
+        try {
+            const requestUserId = req.user?.userId;
+
+            if (!requestUserId) {
+                res.status(401).json({ message: 'Unauthorized' });
+                return;
+            }
+
+            const campaignId = req.params.id;
+            if (!isUUID(campaignId)) {
+                res.status(400).json({ message: 'Invalid campaign ID' });
+                return;
+            }
+
+            const campaignRepo = getCampaignRepo();
+            const campaign = await campaignRepo.findOne({
+                where: { id: campaignId },
+            });
+
+            if (!campaign) {
+                res.status(404).json({ message: 'Campaign not found' });
+                return;
+            }
+
+            if (campaign.status === CampaignStatus.COMPLETED) {
+                res.status(400).json({ message: 'Cannot cancel a completed campaign' });
+                return;
+            }
+
+            if (campaign.status === CampaignStatus.CANCELLED) {
+                res.status(400).json({ message: 'Campaign is already cancelled' });
+                return;
+            }
+
+            campaign.status = CampaignStatus.CANCELLED;
+            const updated = await campaignRepo.save(campaign);
+
+            res.status(200).json(updated);
+            return;
+        } catch (error) {
+            console.error('[cancelCampaign]', error);
             res.status(500).json({ message: 'Internal server error' });
             return;
         }
