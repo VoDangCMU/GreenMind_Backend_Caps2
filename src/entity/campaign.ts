@@ -10,7 +10,8 @@ import {
 } from 'typeorm';
 import { User } from './user';
 import { WasteReport } from './waste_report';
-import { CampaignParticipant } from './campaign_participants'
+import { CampaignParticipant } from './campaign_participants';
+import { CampaignMessage } from './campaign_message';
 
 export enum CampaignStatus {
     PENDING = 'PENDING',
@@ -64,6 +65,9 @@ export class Campaign {
 
     @OneToMany(() => CampaignParticipant, (participant: CampaignParticipant) => participant.campaign)
     participants!: CampaignParticipant[];
+
+    @OneToMany(() => CampaignMessage, (message: CampaignMessage) => message.campaign)
+    messages!: CampaignMessage[];
 
     @CreateDateColumn({ type: 'timestamp' })
     createdAt!: Date;
