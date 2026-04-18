@@ -7,6 +7,8 @@ import controller from "./controller";
 import { corsMiddleware, devCorsMiddleware } from "./middlewares/corsMiddleware";
 import swaggerSpec from "./config/swagger";
 import { registerCampaignScheduler } from "./runner/campaignScheduler";
+import { createServer } from "http";
+import { initSocketServer } from "./infrastructure/socket";
 
 
 async function startServer() {
@@ -16,6 +18,10 @@ async function startServer() {
         registerCampaignScheduler();
 
         const app = express();
+        const httpServer = createServer(app);
+        
+        // Initialize Socket.IO
+        initSocketServer(httpServer);
 
         if (config.app.env === 'development') {
             app.use(devCorsMiddleware);
@@ -54,8 +60,8 @@ async function startServer() {
             res.status(500).json({ message: 'Internal server error' });
         });
 
-        app.listen(config.app.port, () => {
-            console.log(`Server is running on port ${config.app.port}`);
+        httpServer.listen(config.app.port, () => {
+            console.log(`Server & Socket.IO are running on port ${config.app.port}`);
         });
     } catch (error) {
         console.error("Error starting server:", error);

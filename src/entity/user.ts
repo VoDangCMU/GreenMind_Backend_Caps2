@@ -17,6 +17,7 @@ import { Household } from './household';
 import { WasteDetection } from './WasteDetection';
 import { Campaign } from './campaign';
 import { CampaignParticipant } from './campaign_participants';
+import { CampaignMessage } from './campaign_message';
 
 export enum UserRole {
     HOUSEHOLD = 'household',
@@ -101,4 +102,7 @@ export class User {
 
     @OneToMany(() => CampaignParticipant, (participant: CampaignParticipant) => participant.user)
     campaignsParticipated?: CampaignParticipant[];
+
+    @OneToMany(() => CampaignMessage, (message: CampaignMessage) => message.sender)
+    campaignMessages?: CampaignMessage[];
 }

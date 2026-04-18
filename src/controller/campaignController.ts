@@ -4,6 +4,7 @@ import { Campaign, CampaignStatus } from '../entity/campaign';
 import { CampaignParticipant, ParticipantStatus } from '../entity/campaign_participants';
 import { WasteReport, WasteReportStatus } from '../entity/waste_report';
 import { User } from '../entity/user';
+import { CampaignMessage } from '../entity/campaign_message';
 import { In } from 'typeorm';
 import { validate as isUUID } from 'uuid';
 
@@ -21,6 +22,10 @@ function getReportRepo() {
 
 function getUserRepo() {
     return AppDataSource.getRepository(User);
+}
+
+function getMessageRepo() {
+    return AppDataSource.getRepository(CampaignMessage);
 }
 
 
@@ -185,6 +190,74 @@ class CampaignController {
             return;
         } catch (error) {
             console.error('[getCampaignById]', error);
+            res.status(500).json({ message: 'Internal server error' });
+            return;
+        }
+    };
+
+    public getCampaignMessages: RequestHandler = async (req: Request, res: Response) => {
+        try {
+            const userId = req.user?.userId;
+            if (!userId) {
+                res.status(401).json({ message: 'Unauthorized' });
+                return;
+            }
+
+            const campaignId = req.params.id;
+            if (!isUUID(campaignId)) {
+                res.status(400).json({ message: 'Invalid campaign ID' });
+                return;
+            }
+
+            const campaignRepo = getCampaignRepo();
+            const campaign = await campaignRepo.findOneBy({ id: campaignId });
+
+            if (!campaign) {
+                res.status(404).json({ message: 'Campaign not found' });
+                return;
+            }
+
+            const isCreator = campaign.createdByUserId === userId;
+            const participantRepo = getParticipantRepo();
+            const participant = await participantRepo.findOneBy({ campaignId, userId });
+
+            if (!isCreator && (!participant || participant.status !== ParticipantStatus.REGISTERED && participant.status !== ParticipantStatus.CHECKED_IN && participant.status !== ParticipantStatus.COMPLETED)) {
+                res.status(403).json({ message: 'Only registered participants can view messages' });
+                return;
+            }
+
+            const { skip = 0, take = 50 } = req.query;
+
+            const messageRepo = getMessageRepo();
+            const [messages, total] = await messageRepo.findAndCount({
+                where: { campaignId },
+                relations: ['sender'],
+                order: { createdAt: 'DESC' }, // Lastest first
+                skip: Number(skip),
+                take: Number(take)
+            });
+
+            const formattedMessages = messages.map(msg => ({
+                id: msg.id,
+                campaignId: msg.campaignId,
+                sender: {
+                    id: msg.sender.id,
+                    fullName: msg.sender.fullName,
+                    role: msg.sender.role
+                },
+                content: msg.content,
+                createdAt: msg.createdAt
+            })).reverse();
+
+            res.status(200).json({
+                data: formattedMessages,
+                total,
+                skip: Number(skip),
+                take: Number(take)
+            });
+            return;
+        } catch (error) {
+            console.error('[getCampaignMessages]', error);
             res.status(500).json({ message: 'Internal server error' });
             return;
         }

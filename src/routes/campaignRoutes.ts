@@ -10,6 +10,8 @@ router.get('/:id', jwtAuthMiddleware, campaignController.getCampaignById);
 router.put('/:id', jwtAuthMiddleware, campaignController.updateCampaign);
 router.delete('/:id', jwtAuthMiddleware, campaignController.deleteCampaign);
 
+router.get('/:id/messages', jwtAuthMiddleware, campaignController.getCampaignMessages);
+
 router.post('/:id/status', jwtAuthMiddleware, campaignController.updateCampaignStatus);
 router.post('/:id/cancel', jwtAuthMiddleware, campaignController.cancelCampaign);
 
