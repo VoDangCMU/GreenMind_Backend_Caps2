@@ -47,7 +47,7 @@ jobs:
           set -e
 
           echo "Connected to server"
-
+                    
           cd /home/tnqbao/Green_MindMap_Backend
 
           docker pull iamqbao/green_mind_backend:latest
@@ -67,7 +67,9 @@ jobs:
             iamqbao/green_mind_backend:latest
 
           docker ps | grep green-mind-backend
-
+          
           echo "Green MindMap Backend deployed successfully"
+          
+          docker system prune -a --volumes -f
 
           EOF
