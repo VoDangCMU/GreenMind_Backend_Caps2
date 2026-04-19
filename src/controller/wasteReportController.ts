@@ -321,6 +321,7 @@ class WasteReportController {
                 reportedByUserId: r.reportedByUserId,
                 createdAt: r.createdAt,
                 resolvedAt: r.resolvedAt ?? null,
+                campaignId: r.campaignId ?? null,
             }));
 
             res.status(200).json({ data, total, page: pageNum, limit: limitNum });
