@@ -3,7 +3,19 @@ import { z } from 'zod';
 import AppDataSource from '../infrastructure/database';
 import { BigFive } from '../entity/big_five';
 import { User } from '../entity/user';
+import { UserAnswers } from '../entity/user_answers';
 
+
+const AI_API_URL = "https://ai-greenmind.khoav4.com/calculate_ocean"
+const MOCK_DATA = {
+    "scores": {
+        "O": 33.33,
+        "C": 66.67,
+        "E": 41.67,
+        "A": 44.44,
+        "N": 75.0
+    }
+}
 // Schema mới cho format scores
 const BigFiveScoresSchema = z.object({
     user_id: z.string().uuid(),
@@ -256,6 +268,36 @@ class BigFiveController {
                 message: "All Big Five data retrieved successfully",
                 count: formattedList.length,
                 data: formattedList
+            });
+        } catch (e) {
+            return res.status(500).json({ message: "Internal server error" });
+        }
+    }
+
+    public async calculateBigFive(req: Request, res: Response) {
+        try {
+            const userid = req.user?.userId;
+            if (!userid) {
+                return res.status(401).json({ message: "Unauthorized" });
+            }
+
+            const user = await UserRepository.findOneBy({ id: userid });
+            if (!user) {
+                return res.status(404).json({ message: "User not found" });
+            }
+            const userAnswer = await AppDataSource.getRepository(UserAnswers).findBy({ user: { id: userid } });
+            const result = MOCK_DATA;
+            const updatedBigFive = await BigFiveRepository.save({
+                openness: result.scores.O / 100,
+                conscientiousness: result.scores.C / 100,
+                extraversion: result.scores.E / 100,
+                agreeableness: result.scores.A / 100,
+                neuroticism: result.scores.N / 100,
+                user: user
+            });
+            return res.status(200).json({
+                message: "Big Five scores calculated successfully",
+                data: updatedBigFive
             });
         } catch (e) {
             return res.status(500).json({ message: "Internal server error" });
