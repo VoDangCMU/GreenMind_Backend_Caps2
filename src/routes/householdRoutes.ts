@@ -1,6 +1,7 @@
 import { Router } from "express";
 import HouseholdController from "../controller/householdController";
 import { jwtAuthMiddleware } from "../middlewares/jwtMiddleware";
+import { adminMiddleware } from "../middlewares/adminMiddleware";
 import DetectTrashController from "../controller/detectController";
 import greenScoreController from "../controller/greenScoreController";
 
@@ -8,6 +9,7 @@ const router = Router();
 
 router.use(jwtAuthMiddleware);
 router.post("/", HouseholdController.createHousehold);
+router.post("/admin", adminMiddleware, HouseholdController.createHouseholdByAdmin);
 router.get("/", HouseholdController.getHousehold);
 router.put("/", HouseholdController.updateHousehold);
 router.get("/get-all-households", HouseholdController.getAllHouseholds);

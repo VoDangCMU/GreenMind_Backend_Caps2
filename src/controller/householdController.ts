@@ -19,6 +19,13 @@ const UpdateHouseholdParamsSchema = z.object({
     lng: DECIMAL.optional(),
     userId: z.string().uuid().optional()
 });
+
+const CreateHouseholdByAdminSchema = z.object({
+    address: TEXT,
+    lat: DECIMAL,
+    lng: DECIMAL,
+    emails: z.array(z.string().email()).min(1)
+});
 const UserRepository = AppDataSource.getRepository(User);
 const householdRepository = AppDataSource.getRepository(Household);
 const greenScoreRepository = AppDataSource.getRepository(GreenScore);
@@ -237,6 +244,61 @@ export class HouseholdController {
             return res.status(200).json({
                 message: "Households retrieved successfully",
                 data: householdData
+            });
+        } catch (error) {
+            res.status(500).json({ error: "Internal server error" });
+        }
+    }
+
+    public createHouseholdByAdmin: RequestHandler = async (req: any, res: any) => {
+        try {
+            const parsed = CreateHouseholdByAdminSchema.safeParse(req.body);
+            if (!parsed.success) {
+                return res.status(400).json({ error: parsed.error.errors });
+            }
+            const data = parsed.data;
+
+            const users = await UserRepository.find({
+                where: { email: In(data.emails) },
+                relations: { household: true }
+            });
+
+            if (users.length !== data.emails.length) {
+                return res.status(400).json({ error: "Some emails not found" });
+            }
+
+            const usersWithHousehold = users.filter(u => u.household);
+            if (usersWithHousehold.length > 0) {
+                return res.status(400).json({
+                    error: "Some users already belong to a household",
+                    emails: usersWithHousehold.map(u => u.email)
+                });
+            }
+
+            const newHousehold = householdRepository.create({
+                address: data.address,
+                lat: data.lat,
+                lng: data.lng,
+                members: users
+            });
+            await householdRepository.save(newHousehold);
+
+            const defaultScore = greenScoreRepository.create({
+                previousScore: 50,
+                delta: 0,
+                finalScore: 50,
+                householdId: newHousehold.id,
+                household: newHousehold
+            });
+            await greenScoreRepository.save(defaultScore);
+
+            res.status(201).json({
+                message: "Household created successfully",
+                data: {
+                    household: newHousehold,
+                    members: users.length,
+                    greenScore: defaultScore.finalScore
+                }
             });
         } catch (error) {
             res.status(500).json({ error: "Internal server error" });
