@@ -599,6 +599,88 @@ class CampaignController {
             return;
         }
     };
+
+    public getUserChatList: RequestHandler = async (req: Request, res: Response) => {
+        try {
+            const userId = req.user?.userId;
+            if (!userId) {
+                res.status(401).json({ message: 'Unauthorized' });
+                return;
+            }
+
+            const participantRepo = getParticipantRepo();
+            const campaignRepo = getCampaignRepo();
+
+            const createdCampaigns = await campaignRepo.find({
+                where: { createdByUserId: userId },
+                select: ['id', 'name', 'status', 'createdAt']
+            });
+
+            const participations = await participantRepo.find({
+                where: { userId },
+                relations: ['campaign']
+            });
+
+            const chatMap = new Map<string, any>();
+
+            // Add created campaigns
+            for (const c of createdCampaigns) {
+                chatMap.set(c.id, {
+                    campaignId: c.id,
+                    campaignName: c.name,
+                    campaignStatus: c.status,
+                    messageCount: 0,
+                    lastMessage: null,
+                    campaignCreatedAt: c.createdAt
+                });
+            }
+
+            // Add participated campaigns
+            for (const p of participations) {
+                if (!chatMap.has(p.campaignId) && p.campaign) {
+                    chatMap.set(p.campaignId, {
+                        campaignId: p.campaignId,
+                        campaignName: p.campaign.name,
+                        campaignStatus: p.campaign.status,
+                        messageCount: 0,
+                        lastMessage: null,
+                        campaignCreatedAt: p.campaign.createdAt
+                    });
+                }
+            }
+
+            // Get message counts and last message for each campaign
+            const messageRepo = getMessageRepo();
+            for (const [campaignId] of chatMap) {
+                const [messages, count] = await messageRepo.findAndCount({
+                    where: { campaignId },
+                    order: { createdAt: 'DESC' },
+                    take: 1
+                });
+
+                const chatData = chatMap.get(campaignId);
+                chatData.messageCount = count;
+                chatData.lastMessage = messages[0] ? {
+                    content: messages[0].content,
+                    senderId: messages[0].senderId,
+                    createdAt: messages[0].createdAt
+                } : null;
+            }
+
+            const chatList = Array.from(chatMap.values()).sort((a, b) => {
+                const aTime = a.lastMessage?.createdAt || a.campaignCreatedAt;
+                const bTime = b.lastMessage?.createdAt || b.campaignCreatedAt;
+                return new Date(bTime).getTime() - new Date(aTime).getTime();
+            });
+
+            res.status(200).json(chatList);
+            return;
+        } catch (error) {
+            console.error('[getUserChatList]', error);
+            res.status(500).json({ message: 'Internal server error' });
+            return;
+        }
+    };
 }
 
 export default new CampaignController();
