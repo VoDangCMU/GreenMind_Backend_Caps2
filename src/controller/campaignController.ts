@@ -681,6 +681,50 @@ class CampaignController {
             return;
         }
     };
+
+    public getMyCampaigns: RequestHandler = async (req: Request, res: Response) => {
+        try {
+            const userId = req.user?.userId;
+            if (!userId) {
+                res.status(401).json({ message: 'Unauthorized' });
+                return;
+            }
+
+            const participantRepo = getParticipantRepo();
+            const participants = await participantRepo.find({
+                where: { userId },
+                relations: ['campaign', 'campaign.createdBy']
+            });
+
+            const campaigns = participants
+                .filter(p => p.campaign)
+                .map(p => ({
+                    id: p.campaign.id,
+                    name: p.campaign.name,
+                    description: p.campaign.description,
+                    startDate: p.campaign.startDate,
+                    endDate: p.campaign.endDate,
+                    status: p.campaign.status,
+                    lat: p.campaign.lat,
+                    lng: p.campaign.lng,
+                    radius: p.campaign.radius,
+                    participantStatus: p.status,
+                    checkInTime: p.checkInTime,
+                    checkOutTime: p.checkOutTime,
+                    createdBy: p.campaign.createdBy ? {
+                        id: p.campaign.createdBy.id,
+                        fullName: p.campaign.createdBy.fullName
+                    } : null
+                }));
+
+            res.status(200).json(campaigns);
+            return;
+        } catch (error) {
+            console.error('[getMyCampaigns]', error);
+            res.status(500).json({ message: 'Internal server error' });
+            return;
+        }
+    };
 }
 
 export default new CampaignController();
