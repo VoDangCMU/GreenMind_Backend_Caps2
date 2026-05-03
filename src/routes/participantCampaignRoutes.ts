@@ -4,6 +4,7 @@ import { jwtAuthMiddleware } from '../middlewares/jwtMiddleware';
 
 const router = Router();
 
+router.get("/", jwtAuthMiddleware, campaignController.getMyCampaigns);
 router.post('/:id/register', jwtAuthMiddleware, campaignController.registerCampaign);
 router.post('/:id/checkin', jwtAuthMiddleware, campaignController.checkInCampaign);
 router.post('/:id/checkout', jwtAuthMiddleware, campaignController.checkOutCampaign);
