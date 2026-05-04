@@ -16,8 +16,11 @@ router.get("/get-all-households", HouseholdController.getAllHouseholds);
 router.post("/detect-trash", DetectTrashController.DetectTrashOnly);
 router.post("/predict-pollutant", DetectTrashController.PredictPollutantImpact);
 router.post("/total-mass", DetectTrashController.TotalMass);
+router.post("/analyze-image", DetectTrashController.AnalyzeImage);
 router.get("/detect-trash/historyByUser", DetectTrashController.getDetectionHistoryByUser);
 router.get("/detect-trash/historyByHousehold", DetectTrashController.getDetectionHistoryByHousehold);
+router.get("/detects/monthly", DetectTrashController.getMonthlyDetections);
+router.get("/admin/detects/monthly", adminMiddleware, DetectTrashController.getMonthlyDetectionsAdmin);
 router.get("/detect-trash/historyByHousehold/:type", DetectTrashController.getDetectionByTypeHousehold);
 router.post("/green-score/:detectId", greenScoreController.submitGreenScore);
 router.get("/green-score/history", greenScoreController.getGreenScoreHistory);
@@ -29,4 +32,5 @@ router.get("/detect-trash/:type", DetectTrashController.getDetectionByType);
 router.delete("/:id", HouseholdController.deleteHouseholdMembers);
 router.get("/detects", DetectTrashController.getAllDetections);
 router.get("/detects/:type", DetectTrashController.getAllDetectionByType);
+
 export default router;

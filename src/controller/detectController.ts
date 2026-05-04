@@ -5,6 +5,7 @@ import { RequestHandler } from "express";
 import axios from "axios";
 import FormData from "form-data";
 import { DETECT_TYPE, WasteDetection, STATUS } from "../entity/WasteDetection";
+import { MoreThan } from "typeorm";
 
 const WasteDetectionRepository = AppDataSource.getRepository("WasteDetection");
 const UserRepository = AppDataSource.getRepository(User);
@@ -183,6 +184,106 @@ export class DetectTrashController {
             res.status(500).json({ error: "Internal server error" });
         }
     }
+
+    public AnalyzeImage: RequestHandler = async (req: any, res: any) => {
+        try {
+            const userId = req.user?.userId;
+            if (!userId) {
+                return res.status(401).json({ error: "Unauthorized" });
+            }
+
+            const user = await UserRepository.findOne({
+                where: { id: userId },
+                relations: { household: true }
+            });
+
+            const imageUrl = req.body.imageUrl;
+
+            if (!imageUrl) {
+                return res.status(400).json({ error: "Image URL is required" });
+            }
+
+            const responseURL = await axios.get(imageUrl, {
+                responseType: "arraybuffer"
+            });
+            const buffer = Buffer.from(responseURL.data);
+            const contentType = responseURL.headers["content-type"] || "application/octet-stream";
+
+            const [detectResult, predictResult, massResult] = await Promise.all([
+                axios.post(DETECT_TRASH_URL, createFormData(buffer, contentType), {
+                    headers: { ...createFormData(buffer, contentType).getHeaders() },
+                    maxContentLength: Infinity,
+                    maxBodyLength: Infinity
+                }),
+                axios.post(PREDICT_POLLUTANT_URL, createFormData(buffer, contentType), {
+                    headers: { ...createFormData(buffer, contentType).getHeaders() },
+                    maxContentLength: Infinity,
+                    maxBodyLength: Infinity
+                }),
+                axios.post(TOTAL_MASS_URL, createFormData(buffer, contentType), {
+                    headers: { ...createFormData(buffer, contentType).getHeaders() },
+                    maxContentLength: Infinity,
+                    maxBodyLength: Infinity
+                })
+            ]);
+
+            const combinedResults = {
+                detect: {
+                    items: detectResult.data.items,
+                    totalObjects: detectResult.data.total_objects,
+                    imageUrl: detectResult.data.image_url
+                },
+                pollutant: {
+                    items: predictResult.data.items,
+                    pollution: predictResult.data.pollution,
+                    impact: predictResult.data.impact,
+                    totalObjects: predictResult.data.total_objects,
+                    imageUrl: predictResult.data.image_url
+                },
+                totalMass: {
+                    items: massResult.data.items,
+                    totalMassKg: massResult.data.total_mass_kg,
+                    annotatedImageUrl: massResult.data.annotated_image_url,
+                    depthMapUrl: massResult.data.depth_map_url
+                }
+            };
+
+            const massMap = new Map(
+                massResult.data.items.map((item: any) => [item.name.toLowerCase(), item.mass_kg])
+            );
+            const mergedItems = detectResult.data.items.map((item: any) => ({
+                ...item,
+                mass_kg: massMap.get(item.name.toLowerCase()) || null
+            }));
+
+            const wasteDetection = WasteDetectionRepository.create({
+                imageUrl: imageUrl,
+                items: mergedItems,
+                pollution: combinedResults.pollutant.pollution,
+                impact: combinedResults.pollutant.impact,
+                totalObjects: combinedResults.detect.totalObjects,
+                totalMassKg: combinedResults.totalMass.totalMassKg,
+                annotatedImageUrl: combinedResults.totalMass.annotatedImageUrl,
+                depthMapUrl: combinedResults.totalMass.depthMapUrl,
+                aiAnalysis: combinedResults.pollutant.imageUrl,
+                detectedBy: user,
+                household: user?.household,
+                detectType: DETECT_TYPE.ANALYZE_ALL,
+                householdId: user?.householdId,
+                status: STATUS.DETECTED
+            });
+            await WasteDetectionRepository.save(wasteDetection);
+
+            return res.status(200).json({
+                message: "Image analysis completed successfully",
+                data: wasteDetection
+            });
+        } catch (error: any) {
+            console.error("AnalyzeImage Error:", error);
+            res.status(500).json({ error: "Internal server error" });
+        }
+    }
+
     public getDetectionHistoryByUser: RequestHandler = async (req: any, res: any) => {
         try {
             const userId = req.user?.userId;
@@ -499,6 +600,62 @@ export class DetectTrashController {
                 order: { createdAt: "DESC" }
             });
             return res.status(200).json({ message: "Detection history retrieved successfully", data: detections });
+        } catch (error) {
+            res.status(500).json({ error: "Internal server error" });
+        }
+    }
+
+    public getMonthlyDetections: RequestHandler = async (req: any, res: any) => {
+        try {
+            const userId = req.user?.userId;
+            if (!userId) {
+                return res.status(401).json({ error: "Unauthorized" });
+            }
+            const user = await UserRepository.findOne({
+                where: { id: userId },
+                relations: { household: true }
+            });
+            if (!user || !user.household) {
+                return res.status(404).json({ error: "Household not found" });
+            }
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            const detections = await WasteDetectionRepository.find({
+                where: {
+                    household: { id: user.household.id },
+                    createdAt: MoreThan(thirtyDaysAgo)
+                },
+                relations: { detectedBy: true, household: true },
+                order: { createdAt: "DESC" }
+            });
+            return res.status(200).json({
+                message: "Monthly detections retrieved successfully",
+                count: detections.length,
+                data: detections
+            });
+        } catch (error) {
+            res.status(500).json({ error: "Internal server error" });
+        }
+    }
+
+    public getMonthlyDetectionsAdmin: RequestHandler = async (req: any, res: any) => {
+        try {
+            const userId = req.user?.userId;
+            if (!userId) {
+                return res.status(401).json({ error: "Unauthorized" });
+            }
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            const detections = await WasteDetectionRepository.find({
+                where: { createdAt: MoreThan(thirtyDaysAgo) },
+                relations: { detectedBy: true, household: true },
+                order: { createdAt: "DESC" }
+            });
+            return res.status(200).json({
+                message: "Monthly detections retrieved successfully",
+                count: detections.length,
+                data: detections
+            });
         } catch (error) {
             res.status(500).json({ error: "Internal server error" });
         }
