@@ -1,16 +1,16 @@
-import {RequestHandler} from "express";
-import {z} from "zod";
+import { RequestHandler } from "express";
+import { z } from "zod";
 import NUMBER from "../config/schemas/Number";
 import TEXT from "../config/schemas/Text";
 
-import {SurveyScenario} from "../entity/survey_scenario";
-import {User} from "../entity/user";
-import {ScenarioAssignment} from "../entity/scenario_assignments";
+import { SurveyScenario } from "../entity/survey_scenario";
+import { User } from "../entity/user";
+import { ScenarioAssignment } from "../entity/scenario_assignments";
 import AppDataSource from "../infrastructure/database";
-import {SimulatedSurvey} from "../entity/simulated_survey";
-import {QuestionSets} from "../entity/question_sets";
-import {Segment} from "../entity/segments";
-import {BigFive, BigFiveType} from "../entity/big_five";
+import { SimulatedSurvey } from "../entity/simulated_survey";
+import { QuestionSets } from "../entity/question_sets";
+import { Segment } from "../entity/segments";
+import { BigFive, BigFiveType } from "../entity/big_five";
 
 
 const SurveyScenarioParamsSchema = z.object({
@@ -97,12 +97,12 @@ class SurveyScenarioController {
                 return res.status(404).json({ success: false, message: "Scenario not found" });
 
             const questionSet = await AppDataSource.getRepository(QuestionSets).findOne({
-                where: {id: parsed.data.questionSetId},
-                relations: {items: true},
+                where: { id: parsed.data.questionSetId },
+                relations: { items: true },
             });
 
             if (!questionSet)
-                return res.status(404).json({success: false, message: "Question set not found"});
+                return res.status(404).json({ success: false, message: "Question set not found" });
 
             scenario.questionSet = questionSet;
             await this.SurveyScenarioRepo.save(scenario);
@@ -192,11 +192,6 @@ class SurveyScenarioController {
 
             const totalEligible = await eligibleQuery.getCount();
 
-            if (totalEligible === 0)
-                return res.status(400).json({
-                    success: false,
-                    message: "No eligible users found for this scenario"
-                });
 
             const targetCount = Math.ceil(totalEligible * (scenario.percentage / 100));
 
@@ -408,7 +403,7 @@ class SurveyScenarioController {
             const simulatedSurvey = await this.SimulatedSurveyRepo.findOne({
                 where: { scenario: { id: scenarioId } },
                 relations: {
-                    scenario: {questionSet: {items: true}},
+                    scenario: { questionSet: { items: true } },
                     triggeredBy: true,
                 },
             });
@@ -445,7 +440,7 @@ class SurveyScenarioController {
             const simulations = await this.SimulatedSurveyRepo.find({
                 where: { scenario: { id: _req.user?.userId } },
                 relations: {
-                    scenario: {questionSet: {items: true}, user: true},
+                    scenario: { questionSet: { items: true }, user: true },
                     triggeredBy: true,
                 },
                 order: { createdAt: "DESC" },
@@ -468,11 +463,11 @@ class SurveyScenarioController {
         try {
             const userId = req.user?.userId;
             if (!userId) {
-                return res.status(401).json({success: false, message: "Unauthorized"});
+                return res.status(401).json({ success: false, message: "Unauthorized" });
             }
 
             const assignments = await AppDataSource.getRepository(ScenarioAssignment).find({
-                where: {user: {id: userId}, status: "assigned"},
+                where: { user: { id: userId }, status: "assigned" },
                 relations: {
                     scenario: {
                         questionSet: {
@@ -484,7 +479,7 @@ class SurveyScenarioController {
                         }
                     }
                 },
-                order: {createAt: "DESC"}
+                order: { createAt: "DESC" }
             });
 
             const uniqueQuestionsMap = new Map();
@@ -507,18 +502,18 @@ class SurveyScenarioController {
                 }
             });
         } catch (error: any) {
-            return res.status(500).json({success: false, message: error.message});
+            return res.status(500).json({ success: false, message: error.message });
         }
     };
 
     public GetUserQuestionSetSurveys: RequestHandler = async (req, res) => {
         try {
-            if(!req.user?.userId) {
-                return res.status(401).json({success: false, message: "Unauthorized"});
+            if (!req.user?.userId) {
+                return res.status(401).json({ success: false, message: "Unauthorized" });
             }
 
             const assignments = await AppDataSource.getRepository(ScenarioAssignment).find({
-                where: {user: {id: req.user.userId}, status: "assigned"},
+                where: { user: { id: req.user.userId }, status: "assigned" },
                 relations: {
                     scenario: {
                         questionSet: {
@@ -526,7 +521,7 @@ class SurveyScenarioController {
                         }
                     }
                 },
-                order: {createAt: "DESC"}
+                order: { createAt: "DESC" }
             });
 
             return res.status(200).json({
@@ -535,7 +530,7 @@ class SurveyScenarioController {
                 data: assignments
             })
         } catch (e: any) {
-            return res.status(500).json({success: false, message: e.message});
+            return res.status(500).json({ success: false, message: e.message });
         }
     }
 
@@ -543,11 +538,11 @@ class SurveyScenarioController {
         try {
             const userId = req.user?.userId;
             if (!userId) {
-                return res.status(401).json({success: false, message: "Unauthorized"});
+                return res.status(401).json({ success: false, message: "Unauthorized" });
             }
 
             const assignments = await AppDataSource.getRepository(ScenarioAssignment).find({
-                where: {user: {id: userId}, status: "assigned"},
+                where: { user: { id: userId }, status: "assigned" },
                 relations: {
                     scenario: {
                         questionSet: {
@@ -560,7 +555,7 @@ class SurveyScenarioController {
                         }
                     }
                 },
-                order: {createAt: "DESC"}
+                order: { createAt: "DESC" }
             });
 
             return res.status(200).json({
@@ -569,7 +564,7 @@ class SurveyScenarioController {
                 data: assignments
             });
         } catch (error: any) {
-            return res.status(500).json({success: false, message: error.message});
+            return res.status(500).json({ success: false, message: error.message });
         }
     }
     private calculateAgeDateRange(minAge: number, maxAge: number) {
@@ -591,8 +586,16 @@ class SurveyScenarioController {
         const qb = this.UserRepo.createQueryBuilder("user")
             .where("user.dateOfBirth BETWEEN :minBirthDate AND :maxBirthDate", { minBirthDate, maxBirthDate });
 
-        if (location && location.length > 0)
-            qb.andWhere("user.location IN (:...locations)", { locations: location });
+        if (location && location.length > 0) {
+
+            const locationConditions = location.map((loc, index) =>
+                `LOWER(user.location) LIKE LOWER(:location${index})`
+            );
+            qb.andWhere(
+                `(${locationConditions.join(" OR ")})`,
+                Object.fromEntries(location.map((loc, index) => [`location${index}`, `%${loc}%`]))
+            );
+        }
         if (gender)
             qb.andWhere("user.gender = :gender", { gender });
 

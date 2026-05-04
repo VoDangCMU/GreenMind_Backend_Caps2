@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
+import axios from 'axios';
 import AppDataSource from '../infrastructure/database';
 import { BigFive } from '../entity/big_five';
 import { User } from '../entity/user';
@@ -285,21 +286,59 @@ class BigFiveController {
             if (!user) {
                 return res.status(404).json({ message: "User not found" });
             }
-            const userAnswer = await AppDataSource.getRepository(UserAnswers).findBy({ user: { id: userid } });
-            const result = MOCK_DATA;
-            const updatedBigFive = await BigFiveRepository.save({
-                openness: result.scores.O / 100,
-                conscientiousness: result.scores.C / 100,
-                extraversion: result.scores.E / 100,
-                agreeableness: result.scores.A / 100,
-                neuroticism: result.scores.N / 100,
-                user: user
+
+            const userAnswers = await AppDataSource.getRepository(UserAnswers).findBy({ user: { id: userid } });
+            if (!userAnswers || userAnswers.length === 0) {
+                return res.status(400).json({ message: "No answers found for this user" });
+            }
+
+            const userAnswersWithQuestion = await AppDataSource.getRepository(UserAnswers).find({
+                where: { user: { id: userid } },
+                relations: ['question', 'question.template']
             });
+
+            const answersPayload = userAnswersWithQuestion.map(answer => {
+                return {
+                    trait: answer.question.trait!,
+                    text: answer.question.question!,
+                    ans: answer.answer,
+                    key: Math.random() < 0.5 ? 'pos' : 'neg',
+                    kind: answer.question.template!.question_type
+                };
+            });
+
+            const aiResponse = await axios.post(AI_API_URL, {
+                user_id: userid,
+                answers: answersPayload
+            });
+
+            const result = aiResponse.data;
+
+            const bigFive = await BigFiveRepository.findOne({ where: { user: { id: userid } } });
+
+            if (!bigFive) {
+                return res.status(404).json({ message: "Big Five data not found for this user" });
+            }
+            bigFive.openness = result.scores.O / 100;
+            bigFive.conscientiousness = result.scores.C / 100;
+            bigFive.extraversion = result.scores.E / 100;
+            bigFive.agreeableness = result.scores.A / 100;
+            bigFive.neuroticism = result.scores.N / 100;
+
+            await BigFiveRepository.save(bigFive);
+
             return res.status(200).json({
-                message: "Big Five scores calculated successfully",
-                data: updatedBigFive
+                user_id: userid,
+                scores: {
+                    O: result.scores.O,
+                    C: result.scores.C,
+                    E: result.scores.E,
+                    A: result.scores.A,
+                    N: result.scores.N
+                }
             });
         } catch (e) {
+            console.error('Error calculating Big Five:', e);
             return res.status(500).json({ message: "Internal server error" });
         }
     }

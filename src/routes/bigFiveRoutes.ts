@@ -6,7 +6,7 @@ import { adminMiddleware } from '../middlewares/adminMiddleware';
 const router = Router();
 
 router.post('/', jwtAuthMiddleware, controller.bigFive.submitBigFive);
-router.get('/calculate', jwtAuthMiddleware, controller.bigFive.calculateBigFive);
+router.post('/calculate', jwtAuthMiddleware, controller.bigFive.calculateBigFive);
 
 router.get('/user/:userId', jwtAuthMiddleware, controller.bigFive.getBigFiveByUserId);
 

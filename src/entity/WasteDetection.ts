@@ -12,7 +12,8 @@ import { User } from "./user";
 export enum DETECT_TYPE {
     DETECT_TRASH = 'detect_trash',
     PREDICT_POLLUTANT = 'predict_pollutant_impact',
-    TOTAL_MASS = 'total_mass'
+    TOTAL_MASS = 'total_mass',
+    ANALYZE_ALL = 'analyze_all'
 }
 
 export enum STATUS {
