@@ -14,6 +14,7 @@ const householdRepository = AppDataSource.getRepository(Household);
 const PREDICT_POLLUTANT_URL = "https://ai-greenmind.khoav4.com/predict-pollutant-impact";
 const DETECT_TRASH_URL = "https://ai-greenmind.khoav4.com/detect-trash";
 const TOTAL_MASS_URL = "https://ai-greenmind.khoav4.com/total-mass";
+const SEGMENT_URL = "https://ai-greenmind.khoav4.com/detect-trash-ver2";
 
 const createFormData = (buffer: Buffer, contentType: string) => {
     const formData = new FormData();
@@ -52,24 +53,34 @@ export class DetectTrashController {
 
             const detectFormData = createFormData(buffer, contentType);
 
-            const result = await axios.post(DETECT_TRASH_URL, detectFormData, {
-                headers: {
-                    ...detectFormData.getHeaders(),
-                },
-                maxContentLength: Infinity,
-                maxBodyLength: Infinity
-            });
+            const [detectResult, segmentResult] = await Promise.all([
+                axios.post(DETECT_TRASH_URL, detectFormData, {
+                    headers: {
+                        ...detectFormData.getHeaders(),
+                    },
+                    maxContentLength: Infinity,
+                    maxBodyLength: Infinity
+                }),
+                axios.post(SEGMENT_URL, detectFormData, {
+                    headers: {
+                        ...detectFormData.getHeaders(),
+                    },
+                    maxContentLength: Infinity,
+                    maxBodyLength: Infinity
+                })
+            ]);
 
             const wasteDetection = WasteDetectionRepository.create({
                 imageUrl: imageUrl,
-                items: result.data.items,
-                totalObjects: result.data.total_objects,
+                items: detectResult.data.items,
+                totalObjects: detectResult.data.total_objects,
                 detectedBy: user,
                 household: user?.household,
                 detectType: DETECT_TYPE.DETECT_TRASH,
                 status: STATUS.DETECTED,
                 householdId: user?.householdId,
-                aiAnalysis: result.data.image_url,
+                aiAnalysis: detectResult.data.image_url,
+                segments: segmentResult.data.grouped,
             });
             await WasteDetectionRepository.save(wasteDetection);
 
@@ -105,25 +116,35 @@ export class DetectTrashController {
 
             const predictFormData = createFormData(buffer, contentType);
 
-            const result = await axios.post(PREDICT_POLLUTANT_URL, predictFormData, {
-                headers: {
-                    ...predictFormData.getHeaders()
-                },
-                maxContentLength: Infinity,
-                maxBodyLength: Infinity
-            });
+            const [predictResult, segmentResult] = await Promise.all([
+                axios.post(PREDICT_POLLUTANT_URL, predictFormData, {
+                    headers: {
+                        ...predictFormData.getHeaders()
+                    },
+                    maxContentLength: Infinity,
+                    maxBodyLength: Infinity
+                }),
+                axios.post(SEGMENT_URL, predictFormData, {
+                    headers: {
+                        ...predictFormData.getHeaders()
+                    },
+                    maxContentLength: Infinity,
+                    maxBodyLength: Infinity
+                })
+            ]);
 
             const wasteDetection = WasteDetectionRepository.create({
                 imageUrl: imageUrl,
-                items: result.data.items,
-                pollution: result.data.pollution,
-                impact: result.data.impact,
-                totalObjects: result.data.total_objects,
+                items: predictResult.data.items,
+                pollution: predictResult.data.pollution,
+                impact: predictResult.data.impact,
+                totalObjects: predictResult.data.total_objects,
                 detectedBy: user,
                 household: user?.household,
                 detectType: DETECT_TYPE.PREDICT_POLLUTANT,
                 householdId: user?.householdId,
-                aiAnalysis: result.data.image_url,
+                aiAnalysis: predictResult.data.image_url,
+                segments: segmentResult.data.grouped,
             });
             await WasteDetectionRepository.save(wasteDetection);
 
@@ -160,23 +181,33 @@ export class DetectTrashController {
             const buffer = Buffer.from(responseURL.data);
             const contentType = responseURL.headers["content-type"] || "application/octet-stream";
             const formData = createFormData(buffer, contentType);
-            const result = await axios.post(TOTAL_MASS_URL, formData, {
-                headers: {
-                    ...formData.getHeaders(),
-                },
-                maxContentLength: Infinity,
-                maxBodyLength: Infinity
-            });
+            const [massResult, segmentResult] = await Promise.all([
+                axios.post(TOTAL_MASS_URL, formData, {
+                    headers: {
+                        ...formData.getHeaders(),
+                    },
+                    maxContentLength: Infinity,
+                    maxBodyLength: Infinity
+                }),
+                axios.post(SEGMENT_URL, formData, {
+                    headers: {
+                        ...formData.getHeaders(),
+                    },
+                    maxContentLength: Infinity,
+                    maxBodyLength: Infinity
+                })
+            ]);
             const wasteDetection = WasteDetectionRepository.create({
                 imageUrl: imageUrl,
-                items: result.data.items,
-                totalMassKg: result.data.total_mass_kg,
-                annotatedImageUrl: result.data.annotated_image_url,
-                depthMapUrl: result.data.depth_map_url,
+                items: massResult.data.items,
+                totalMassKg: massResult.data.total_mass_kg,
+                annotatedImageUrl: massResult.data.annotated_image_url,
+                depthMapUrl: massResult.data.depth_map_url,
                 detectedBy: user,
                 household: user?.household,
                 detectType: DETECT_TYPE.TOTAL_MASS,
-                householdId: user?.householdId
+                householdId: user?.householdId,
+                segments: segmentResult.data.grouped,
             });
             await WasteDetectionRepository.save(wasteDetection);
             return res.status(200).json({ message: "Total mass estimation successful", data: wasteDetection });
@@ -209,7 +240,7 @@ export class DetectTrashController {
             const buffer = Buffer.from(responseURL.data);
             const contentType = responseURL.headers["content-type"] || "application/octet-stream";
 
-            const [detectResult, predictResult, massResult] = await Promise.all([
+            const [detectResult, predictResult, massResult, segmentResult] = await Promise.all([
                 axios.post(DETECT_TRASH_URL, createFormData(buffer, contentType), {
                     headers: { ...createFormData(buffer, contentType).getHeaders() },
                     maxContentLength: Infinity,
@@ -221,6 +252,11 @@ export class DetectTrashController {
                     maxBodyLength: Infinity
                 }),
                 axios.post(TOTAL_MASS_URL, createFormData(buffer, contentType), {
+                    headers: { ...createFormData(buffer, contentType).getHeaders() },
+                    maxContentLength: Infinity,
+                    maxBodyLength: Infinity
+                }),
+                axios.post(SEGMENT_URL, createFormData(buffer, contentType), {
                     headers: { ...createFormData(buffer, contentType).getHeaders() },
                     maxContentLength: Infinity,
                     maxBodyLength: Infinity
@@ -245,7 +281,8 @@ export class DetectTrashController {
                     totalMassKg: massResult.data.total_mass_kg,
                     annotatedImageUrl: massResult.data.annotated_image_url,
                     depthMapUrl: massResult.data.depth_map_url
-                }
+                },
+                segments: segmentResult.data.grouped
             };
 
             const massMap = new Map(
@@ -270,7 +307,8 @@ export class DetectTrashController {
                 household: user?.household,
                 detectType: DETECT_TYPE.ANALYZE_ALL,
                 householdId: user?.householdId,
-                status: STATUS.DETECTED
+                status: STATUS.DETECTED,
+                segments: combinedResults.segments
             });
             await WasteDetectionRepository.save(wasteDetection);
 
