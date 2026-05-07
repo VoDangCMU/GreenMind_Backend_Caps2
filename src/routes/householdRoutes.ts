@@ -20,7 +20,7 @@ router.post("/analyze-image", DetectTrashController.AnalyzeImage);
 router.get("/detect-trash/historyByUser", DetectTrashController.getDetectionHistoryByUser);
 router.get("/detect-trash/historyByHousehold", DetectTrashController.getDetectionHistoryByHousehold);
 router.get("/detects/monthly", DetectTrashController.getMonthlyDetections);
-router.get("/admin/detects/monthly", adminMiddleware, DetectTrashController.getMonthlyDetectionsAdmin);
+router.get("/admin/detects/monthly", DetectTrashController.getMonthlyDetectionsAdmin);
 router.get("/detect-trash/historyByHousehold/:type", DetectTrashController.getDetectionByTypeHousehold);
 router.post("/green-score/:detectId", greenScoreController.submitGreenScore);
 router.get("/green-score/history", greenScoreController.getGreenScoreHistory);

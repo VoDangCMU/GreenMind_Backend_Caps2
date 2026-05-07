@@ -40,8 +40,8 @@ class GreenScoreController {
                 return res.status(404).json({ message: "Waste detection not found" });
             }
 
-            if (detect.detectType !== DETECT_TYPE.DETECT_TRASH) {
-                return res.status(400).json({ message: "Just detect trash only can be submitted for green score calculation" });
+            if (detect.detectType !== DETECT_TYPE.DETECT_TRASH && detect.detectType !== DETECT_TYPE.ANALYZE_ALL) {
+                return res.status(400).json({ message: "Just detect trash and analyze all can be submitted for green score calculation" });
             }
 
             if (detect.householdId !== user.householdId) {
