@@ -39,6 +39,9 @@ export class WasteDetection {
     pollution?: Record<string, any>;
 
     @Column({ type: 'jsonb', nullable: true })
+    segments?: Record<string, any>;
+
+    @Column({ type: 'jsonb', nullable: true })
     impact?: Record<string, any>;
 
     @Column({ type: 'integer', nullable: true })
