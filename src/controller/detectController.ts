@@ -400,9 +400,6 @@ export class DetectTrashController {
                 return res.status(404).json({ error: "Waste detection record not found" });
             }
 
-            if (detection.detectType !== DETECT_TYPE.DETECT_TRASH) {
-                return res.status(400).json({ error: "Only detections of type 'DETECT_TRASH' can be marked as brought out" });
-            }
             if (detection.status === STATUS.BROUGHT_OUT) {
                 return res.status(400).json({ error: "Trash has already been marked as brought out" });
             }
