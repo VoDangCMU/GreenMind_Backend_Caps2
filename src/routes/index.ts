@@ -14,6 +14,7 @@ import dailySpendingRouter from "./dailySpendingRoutes";
 import preAppSurveyRouter from "./preAppSurveyRoutes";
 import todoRouter from "./todoRoutes";
 import metricsRouter from "./metricsRoutes";
+import oceanMetricsRouter from "./oceanMetricsRoutes";
 import brandRouter from "./brandRoutes";
 import ocrRouter from "./ocrRoutes";
 import healthyFoodRouter from "./healthyFoodRoutes";
@@ -27,6 +28,7 @@ import blogRouter from "./blogRoutes";
 import campaignRouter from "./campaignRoutes";
 import participantCampaignRouter from "./participantCampaignRoutes";
 import collectorRouter from "./collectorRoutes";
+import plantAnalysisRouter from "./plantAnalysisRoutes";
 
 const router = Router();
 
@@ -47,6 +49,7 @@ router.use("/daily-spending", dailySpendingRouter)
 router.use("/pre-app-survey", preAppSurveyRouter);
 router.use("/todos", todoRouter);
 router.use("/metrics", metricsRouter);
+router.use("/ocean-metrics", oceanMetricsRouter);
 router.use("/brands", brandRouter);
 router.use("/ocr", ocrRouter);
 router.use("/healthy-food-ratio", healthyFoodRouter);
@@ -60,5 +63,6 @@ router.use("/blogs", blogRouter);
 router.use("/campaigns", campaignRouter);
 router.use("/participant-campaigns", participantCampaignRouter);
 router.use("/collectors", collectorRouter);
+router.use("/plant-analysis", plantAnalysisRouter);
 
 export default router;

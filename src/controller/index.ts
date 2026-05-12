@@ -12,6 +12,7 @@ import { modelController as model } from "./modelController";
 import preAppSurvey from "./preAppSurveyController";
 import questionSet from "./questionSetController";
 import avgDailySpendMetric from "./metrics/averageDailySpendController";
+import oceanMetric from "./oceanMetricController";
 import spendVariabilityMetric from "./metrics/spendVariabilityController";
 import brandNoveltyMetric from "./metrics/brandNoveltyController";
 import listAdherenceMetric from "./metrics/listAdherenceController";
@@ -33,6 +34,7 @@ export default {
     dailyPending,
     location,
     avgDailySpendMetric,
+    oceanMetric,
     spendVariabilityMetric,
     brandNoveltyMetric,
     listAdherenceMetric,
