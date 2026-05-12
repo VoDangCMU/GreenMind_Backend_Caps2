@@ -30,6 +30,7 @@ class BlogController {
                 .select([
                     'blog.id',
                     'blog.title',
+                    'blog.content',
                     'blog.tags',
                     'blog.like_count',
                     'blog.author_id',
@@ -57,6 +58,7 @@ class BlogController {
                 data: data.map((b) => ({
                     id: b.id,
                     title: b.title,
+                    content: b.content,
                     tags: b.tags ?? [],
                     like_count: b.like_count,
                     author_id: b.author_id,
