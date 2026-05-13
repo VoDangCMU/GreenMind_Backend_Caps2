@@ -10,13 +10,6 @@ export enum WasteReportStatus {
     DONE = 'done',
 }
 
-export enum WasteType {
-    PLASTIC = 'plastic',
-    ORGANIC = 'organic',
-    MIXED = 'mixed',
-    HAZARDOUS = 'hazardous',
-}
-
 @Entity(WASTE_REPORTS_TABLE_NAME)
 @Index(['wardName', 'status'])
 export class WasteReport {
@@ -55,12 +48,6 @@ export class WasteReport {
 
     @Column('double precision')
     lng!: number;
-
-    @Column({
-        type: 'enum',
-        enum: WasteType,
-    })
-    wasteType!: WasteType;
 
     @Index()
     @Column({ type: 'varchar', length: 100 })

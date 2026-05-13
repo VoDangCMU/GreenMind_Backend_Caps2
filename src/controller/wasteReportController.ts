@@ -1,12 +1,10 @@
 import { Request, Response, RequestHandler } from 'express';
 import AppDataSource from '../infrastructure/database';
-import { WasteReport, WasteReportStatus, WasteType } from '../entity/waste_report';
+import { WasteReport, WasteReportStatus } from '../entity/waste_report';
 import { User } from '../entity/user';
 import { validate as isUUID } from 'uuid';
 import axios from 'axios';
 import FormData from 'form-data';
-
-const VALID_WASTE_TYPES = Object.values(WasteType) as string[];
 
 function getReportRepo() {
     return AppDataSource.getRepository(WasteReport);
@@ -32,11 +30,7 @@ class WasteReportController {
                 return;
             }
 
-            const { wasteType, wardName, lat, lng, description, imageUrl } = req.body;
-            if (!wasteType || !VALID_WASTE_TYPES.includes(wasteType)) {
-                res.status(400).json({ message: `wasteType must be one of: ${VALID_WASTE_TYPES.join(', ')}` });
-                return;
-            }
+            const { wardName, lat, lng, description, imageUrl } = req.body;
             if (!wardName || typeof wardName !== 'string' || wardName.trim() === '') {
                 res.status(400).json({ message: 'wardName is required' });
                 return;
@@ -92,7 +86,6 @@ class WasteReportController {
 
             const newReport = reportRepo.create({
                 code,
-                wasteType: wasteType as WasteType,
                 wardName: wardName.trim(),
                 lat: parsedLat,
                 lng: parsedLng,
@@ -207,12 +200,7 @@ class WasteReportController {
                 return res.status(400).json({ message: 'Invalid reportId' });
             }
 
-            const { wasteType, description, imageUrl } = req.body;
-
-            if (wasteType && !VALID_WASTE_TYPES.includes(wasteType)) {
-                res.status(400).json({ message: `wasteType must be one of: ${VALID_WASTE_TYPES.join(', ')}` });
-                return;
-            }
+            const { description, imageUrl } = req.body;
 
             const reportRepo = getReportRepo();
             const report = await reportRepo.findOneBy({ id: req.params.id });
@@ -230,7 +218,6 @@ class WasteReportController {
                 return;
             }
 
-            if (wasteType) report.wasteType = wasteType as WasteType;
             if (description !== undefined) report.description = description;
             if (imageUrl !== undefined) report.imageUrl = imageUrl;
 
@@ -315,7 +302,6 @@ class WasteReportController {
                 imageEvidenceUrl: r.imageEvidenceUrl,
                 lat: r.lat,
                 lng: r.lng,
-                wasteType: r.wasteType,
                 description: r.description,
                 reportedBy: r.reportedBy?.fullName ?? null,
                 reportedByUserId: r.reportedByUserId,
