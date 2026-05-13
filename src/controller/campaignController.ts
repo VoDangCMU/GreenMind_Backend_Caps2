@@ -28,7 +28,6 @@ function getMessageRepo() {
     return AppDataSource.getRepository(CampaignMessage);
 }
 
-
 function getDistanceFromLatLonInM(lat1: number, lon1: number, lat2: number, lon2: number) {
     const R = 6371000;
     const dLat = (lat2 - lat1) * (Math.PI / 180);
@@ -169,6 +168,25 @@ class CampaignController {
                 return;
             }
 
+            const userId = req.user?.userId;
+            const isCreator = campaign.createdByUserId === userId;
+            const participantRepo = getParticipantRepo();
+            const participant = await participantRepo.findOneBy({ campaignId: campaign.id, userId });
+
+            const validStatuses = [ParticipantStatus.APPROVED, ParticipantStatus.CHECKED_IN, ParticipantStatus.COMPLETED];
+            if (!isCreator && (!participant || !validStatuses.includes(participant.status))) {
+                if (participant && participant.status === ParticipantStatus.PENDING) {
+                    res.status(403).json({ message: 'Your registration is pending approval.' });
+                    return;
+                }
+                if (participant && participant.status === ParticipantStatus.REJECTED) {
+                    res.status(403).json({ message: 'Your registration was rejected.' });
+                    return;
+                }
+                res.status(403).json({ message: 'You must be an approved participant to view campaign details' });
+                return;
+            }
+
             const formattedCampaign = {
                 ...campaign,
                 participantsCount: campaign.participants ? campaign.participants.length : 0,
@@ -221,8 +239,9 @@ class CampaignController {
             const participantRepo = getParticipantRepo();
             const participant = await participantRepo.findOneBy({ campaignId, userId });
 
-            if (!isCreator && (!participant || participant.status !== ParticipantStatus.REGISTERED && participant.status !== ParticipantStatus.CHECKED_IN && participant.status !== ParticipantStatus.COMPLETED)) {
-                res.status(403).json({ message: 'Only registered participants can view messages' });
+            const validStatuses = [ParticipantStatus.APPROVED, ParticipantStatus.CHECKED_IN, ParticipantStatus.COMPLETED];
+            if (!isCreator && (!participant || !validStatuses.includes(participant.status))) {
+                res.status(403).json({ message: 'Only approved participants can view messages' });
                 return;
             }
 
@@ -232,7 +251,7 @@ class CampaignController {
             const [messages, total] = await messageRepo.findAndCount({
                 where: { campaignId },
                 relations: ['sender'],
-                order: { createdAt: 'DESC' }, // Lastest first
+                order: { createdAt: 'DESC' },
                 skip: Number(skip),
                 take: Number(take)
             });
@@ -284,7 +303,6 @@ class CampaignController {
                 return;
             }
 
-
             const { name, description, startDate, endDate, lat, lng } = req.body;
 
             if (name !== undefined) campaign.name = name;
@@ -332,170 +350,6 @@ class CampaignController {
             return;
         } catch (error) {
             console.error('[deleteCampaign]', error);
-            res.status(500).json({ message: 'Internal server error' });
-            return;
-        }
-    };
-
-    public registerCampaign: RequestHandler = async (req: Request, res: Response) => {
-        try {
-            const userId = req.user?.userId;
-            if (!userId) {
-                res.status(401).json({ message: 'Unauthorized' });
-                return;
-            }
-
-            const campaignId = req.params.id;
-            if (!isUUID(campaignId)) {
-                res.status(400).json({ message: 'Invalid campaign ID' });
-                return;
-            }
-
-            const campaignRepo = getCampaignRepo();
-            const campaign = await campaignRepo.findOneBy({ id: campaignId });
-
-            if (!campaign) {
-                res.status(404).json({ message: 'Campaign not found' });
-                return;
-            }
-
-            if (campaign.status === CampaignStatus.CANCELLED || campaign.status === CampaignStatus.COMPLETED) {
-                res.status(400).json({ message: `Cannot register for a ${campaign.status.toLowerCase()} campaign` });
-                return;
-            }
-
-            const participantRepo = getParticipantRepo();
-            const existingParticipant = await participantRepo.findOneBy({ campaignId, userId });
-
-            if (existingParticipant) {
-                res.status(400).json({ message: 'User is already registered for this campaign' });
-                return;
-            }
-
-            const newParticipant = participantRepo.create({
-                campaignId,
-                userId,
-                status: ParticipantStatus.REGISTERED
-            });
-
-            await participantRepo.save(newParticipant);
-
-            res.status(200).json(newParticipant);
-            return;
-        } catch (error) {
-            console.error('[registerCampaign]', error);
-            res.status(500).json({ message: 'Internal server error' });
-            return;
-        }
-    };
-
-    public checkInCampaign: RequestHandler = async (req: Request, res: Response) => {
-        try {
-            const userId = req.user?.userId;
-            if (!userId) {
-                res.status(401).json({ message: 'Unauthorized' });
-                return;
-            }
-
-            const campaignId = req.params.id;
-            if (!isUUID(campaignId)) {
-                res.status(400).json({ message: 'Invalid campaign ID' });
-                return;
-            }
-
-            const { lat, lng } = req.body;
-            if (lat === undefined || lng === undefined) {
-                res.status(400).json({ message: 'Missing lat, lng for check-in' });
-                return;
-            }
-
-            const campaignRepo = getCampaignRepo();
-            const campaign = await campaignRepo.findOneBy({ id: campaignId });
-
-            if (!campaign) {
-                res.status(404).json({ message: 'Campaign not found' });
-                return;
-            }
-
-            const participantRepo = getParticipantRepo();
-            const participant = await participantRepo.findOneBy({ campaignId, userId });
-
-            if (!participant) {
-                res.status(400).json({ message: 'User is not registered for this campaign' });
-                return;
-            }
-
-            if (participant.status !== ParticipantStatus.REGISTERED) {
-                res.status(400).json({ message: `Cannot check in. Current status: ${participant.status}` });
-                return;
-            }
-
-            const distance = getDistanceFromLatLonInM(campaign.lat, campaign.lng, parseFloat(lat), parseFloat(lng));
-            if (distance > campaign.radius) {
-                res.status(400).json({ message: `Bạn đang ở quá xa khu vực tập trung (cách ${Math.round(distance)}m, tối đa ${campaign.radius}m)` });
-                return;
-            }
-
-            participant.status = ParticipantStatus.CHECKED_IN;
-            participant.checkInTime = new Date();
-            participant.checkInLat = parseFloat(lat);
-            participant.checkInLng = parseFloat(lng);
-
-            await participantRepo.save(participant);
-
-            res.status(200).json(participant);
-            return;
-        } catch (error) {
-            console.error('[checkInCampaign]', error);
-            res.status(500).json({ message: 'Internal server error' });
-            return;
-        }
-    };
-
-    public checkOutCampaign: RequestHandler = async (req: Request, res: Response) => {
-        try {
-            const userId = req.user?.userId;
-            if (!userId) {
-                res.status(401).json({ message: 'Unauthorized' });
-                return;
-            }
-
-            const campaignId = req.params.id;
-            if (!isUUID(campaignId)) {
-                res.status(400).json({ message: 'Invalid campaign ID' });
-                return;
-            }
-
-            const { lat, lng } = req.body;
-            if (lat === undefined || lng === undefined) {
-                res.status(400).json({ message: 'Missing lat, lng for check-out' });
-                return;
-            }
-
-            const participantRepo = getParticipantRepo();
-            const participant = await participantRepo.findOneBy({ campaignId, userId });
-
-            if (!participant) {
-                res.status(400).json({ message: 'User is not registered for this campaign' });
-                return;
-            }
-
-            if (participant.status !== ParticipantStatus.CHECKED_IN) {
-                res.status(400).json({ message: `Cannot check out. User has not checked in. Current status: ${participant.status}` });
-                return;
-            }
-
-            participant.status = ParticipantStatus.COMPLETED;
-            participant.checkOutTime = new Date();
-            participant.checkOutLat = parseFloat(lat);
-            participant.checkOutLng = parseFloat(lng);
-
-            await participantRepo.save(participant);
-
-            res.status(200).json(participant);
-            return;
-        } catch (error) {
-            console.error('[checkOutCampaign]', error);
             res.status(500).json({ message: 'Internal server error' });
             return;
         }
@@ -623,7 +477,6 @@ class CampaignController {
 
             const chatMap = new Map<string, any>();
 
-            // Add created campaigns
             for (const c of createdCampaigns) {
                 chatMap.set(c.id, {
                     campaignId: c.id,
@@ -635,7 +488,6 @@ class CampaignController {
                 });
             }
 
-            // Add participated campaigns
             for (const p of participations) {
                 if (!chatMap.has(p.campaignId) && p.campaign) {
                     chatMap.set(p.campaignId, {
@@ -649,7 +501,6 @@ class CampaignController {
                 }
             }
 
-            // Get message counts and last message for each campaign
             const messageRepo = getMessageRepo();
             for (const [campaignId] of chatMap) {
                 const [messages, count] = await messageRepo.findAndCount({
@@ -677,50 +528,6 @@ class CampaignController {
             return;
         } catch (error) {
             console.error('[getUserChatList]', error);
-            res.status(500).json({ message: 'Internal server error' });
-            return;
-        }
-    };
-
-    public getMyCampaigns: RequestHandler = async (req: Request, res: Response) => {
-        try {
-            const userId = req.user?.userId;
-            if (!userId) {
-                res.status(401).json({ message: 'Unauthorized' });
-                return;
-            }
-
-            const participantRepo = getParticipantRepo();
-            const participants = await participantRepo.find({
-                where: { userId },
-                relations: ['campaign', 'campaign.createdBy']
-            });
-
-            const campaigns = participants
-                .filter(p => p.campaign)
-                .map(p => ({
-                    id: p.campaign.id,
-                    name: p.campaign.name,
-                    description: p.campaign.description,
-                    startDate: p.campaign.startDate,
-                    endDate: p.campaign.endDate,
-                    status: p.campaign.status,
-                    lat: p.campaign.lat,
-                    lng: p.campaign.lng,
-                    radius: p.campaign.radius,
-                    participantStatus: p.status,
-                    checkInTime: p.checkInTime,
-                    checkOutTime: p.checkOutTime,
-                    createdBy: p.campaign.createdBy ? {
-                        id: p.campaign.createdBy.id,
-                        fullName: p.campaign.createdBy.fullName
-                    } : null
-                }));
-
-            res.status(200).json(campaigns);
-            return;
-        } catch (error) {
-            console.error('[getMyCampaigns]', error);
             res.status(500).json({ message: 'Internal server error' });
             return;
         }

@@ -76,8 +76,9 @@ export const initSocketServer = (httpServer: HttpServer) => {
                 const participantRepo = AppDataSource.getRepository(CampaignParticipant);
                 const participant = await participantRepo.findOneBy({ campaignId, userId });
 
-                if (!isCreator && (!participant || (participant.status !== ParticipantStatus.REGISTERED && participant.status !== ParticipantStatus.CHECKED_IN && participant.status !== ParticipantStatus.COMPLETED))) {
-                    socket.emit('error', { message: 'Only registered participants can join chat' });
+                const validStatuses = [ParticipantStatus.APPROVED, ParticipantStatus.CHECKED_IN, ParticipantStatus.COMPLETED];
+                if (!isCreator && (!participant || !validStatuses.includes(participant.status))) {
+                    socket.emit('error', { message: 'Only approved participants can join chat' });
                     return;
                 }
 
@@ -119,11 +120,8 @@ export const initSocketServer = (httpServer: HttpServer) => {
                 const participantRepo = AppDataSource.getRepository(CampaignParticipant);
                 const participant = await participantRepo.findOneBy({ campaignId, userId });
 
-                const isValidParticipant = participant && (
-                    participant.status === ParticipantStatus.REGISTERED ||
-                    participant.status === ParticipantStatus.CHECKED_IN ||
-                    participant.status === ParticipantStatus.COMPLETED
-                );
+                const validStatuses = [ParticipantStatus.APPROVED, ParticipantStatus.CHECKED_IN, ParticipantStatus.COMPLETED];
+                const isValidParticipant = participant && validStatuses.includes(participant.status);
 
                 if (!isCreator && !isValidParticipant) {
                     socket.leave(roomName); // Kick user out of room if they no longer have permission
