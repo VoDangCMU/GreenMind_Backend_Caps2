@@ -52,6 +52,7 @@ export class DetectTrashController {
             const contentType = responseURL.headers["content-type"] || "application/octet-stream";
 
             const detectFormData = createFormData(buffer, contentType);
+            const segmentFormData = createFormData(buffer, contentType);
 
             const [detectResult, segmentResult] = await Promise.all([
                 axios.post(DETECT_TRASH_URL, detectFormData, {
@@ -61,9 +62,9 @@ export class DetectTrashController {
                     maxContentLength: Infinity,
                     maxBodyLength: Infinity
                 }),
-                axios.post(SEGMENT_URL, detectFormData, {
+                axios.post(SEGMENT_URL, segmentFormData, {
                     headers: {
-                        ...detectFormData.getHeaders(),
+                        ...segmentFormData.getHeaders(),
                     },
                     maxContentLength: Infinity,
                     maxBodyLength: Infinity
@@ -117,16 +118,16 @@ export class DetectTrashController {
             const predictFormData = createFormData(buffer, contentType);
 
             const [predictResult, segmentResult] = await Promise.all([
-                axios.post(PREDICT_POLLUTANT_URL, predictFormData, {
+                axios.post(PREDICT_POLLUTANT_URL, createFormData(buffer, contentType), {
                     headers: {
-                        ...predictFormData.getHeaders()
+                        ...createFormData(buffer, contentType).getHeaders()
                     },
                     maxContentLength: Infinity,
                     maxBodyLength: Infinity
                 }),
-                axios.post(SEGMENT_URL, predictFormData, {
+                axios.post(SEGMENT_URL, createFormData(buffer, contentType), {
                     headers: {
-                        ...predictFormData.getHeaders()
+                        ...createFormData(buffer, contentType).getHeaders()
                     },
                     maxContentLength: Infinity,
                     maxBodyLength: Infinity
@@ -181,6 +182,8 @@ export class DetectTrashController {
             const buffer = Buffer.from(responseURL.data);
             const contentType = responseURL.headers["content-type"] || "application/octet-stream";
             const formData = createFormData(buffer, contentType);
+            const segmentFormData = createFormData(buffer, contentType);
+
             const [massResult, segmentResult] = await Promise.all([
                 axios.post(TOTAL_MASS_URL, formData, {
                     headers: {
@@ -189,9 +192,9 @@ export class DetectTrashController {
                     maxContentLength: Infinity,
                     maxBodyLength: Infinity
                 }),
-                axios.post(SEGMENT_URL, formData, {
+                axios.post(SEGMENT_URL, segmentFormData, {
                     headers: {
-                        ...formData.getHeaders(),
+                        ...segmentFormData.getHeaders(),
                     },
                     maxContentLength: Infinity,
                     maxBodyLength: Infinity

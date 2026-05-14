@@ -1,12 +1,12 @@
 import { Router } from 'express';
-import campaignController from '../controller/campaignController';
+import participantCampaignController from '../controller/participantCampaignController';
 import { jwtAuthMiddleware } from '../middlewares/jwtMiddleware';
 
 const router = Router();
 
-router.get("/", jwtAuthMiddleware, campaignController.getMyCampaigns);
-router.post('/:id/register', jwtAuthMiddleware, campaignController.registerCampaign);
-router.post('/:id/checkin', jwtAuthMiddleware, campaignController.checkInCampaign);
-router.post('/:id/checkout', jwtAuthMiddleware, campaignController.checkOutCampaign);
+router.get("/", jwtAuthMiddleware, participantCampaignController.getMyCampaigns);
+router.post('/:id/register', jwtAuthMiddleware, participantCampaignController.registerCampaign);
+router.post('/:id/checkin', jwtAuthMiddleware, participantCampaignController.checkInCampaign);
+router.post('/:id/checkout', jwtAuthMiddleware, participantCampaignController.checkOutCampaign);
 
 export default router;

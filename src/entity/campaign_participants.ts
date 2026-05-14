@@ -11,7 +11,9 @@ import { User } from './user';
 import { Campaign } from './campaign';
 
 export enum ParticipantStatus {
-    REGISTERED = 'REGISTERED',
+    PENDING = 'PENDING',
+    APPROVED = 'APPROVED',
+    REJECTED = 'REJECTED',
     CHECKED_IN = 'CHECKED_IN',
     COMPLETED = 'COMPLETED'
 }
@@ -56,7 +58,7 @@ export class CampaignParticipant {
     @Column({
         type: 'enum',
         enum: ParticipantStatus,
-        default: ParticipantStatus.REGISTERED,
+        default: ParticipantStatus.PENDING,
     })
     status!: ParticipantStatus;
 
