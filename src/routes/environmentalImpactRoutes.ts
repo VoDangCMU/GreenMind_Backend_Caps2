@@ -6,7 +6,10 @@ const router = Router();
 
 router.use(jwtAuthMiddleware);
 
-// GET /environmental-impact?range=day|week|month
+// GET /environmental-impact/all?range=day|week|month&startDate=YYYY-MM-DD&endDate=YYYY-MM-DD (admin: all users)
+router.get("/all", environmentalImpactController.getSummaryAll);
+
+// GET /environmental-impact?range=day|week|month&startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
 router.get("/", environmentalImpactController.getSummary);
 
 // GET /environmental-impact/history?page=1&limit=30
