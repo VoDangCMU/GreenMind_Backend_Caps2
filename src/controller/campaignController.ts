@@ -5,6 +5,7 @@ import { CampaignParticipant, ParticipantStatus } from '../entity/campaign_parti
 import { WasteReport, WasteReportStatus } from '../entity/waste_report';
 import { User } from '../entity/user';
 import { CampaignMessage } from '../entity/campaign_message';
+import { Blog } from '../entity/blog';
 import { In } from 'typeorm';
 import { validate as isUUID } from 'uuid';
 
@@ -27,6 +28,11 @@ function getUserRepo() {
 function getMessageRepo() {
     return AppDataSource.getRepository(CampaignMessage);
 }
+
+function getBlogRepo() {
+    return AppDataSource.getRepository(Blog);
+}
+
 
 function getDistanceFromLatLonInM(lat1: number, lon1: number, lat2: number, lon2: number) {
     const R = 6371000;
@@ -83,6 +89,35 @@ class CampaignController {
                     { id: In(reportIds) },
                     { campaignId: savedCampaign.id, status: WasteReportStatus.APPROVED }
                 );
+            }
+
+            // Auto-create a blog post announcing the campaign
+            try {
+                const creator = await getUserRepo().findOneBy({ id: userId });
+                const startStr = new Date(startDate).toLocaleDateString('vi-VN');
+                const endStr   = new Date(endDate).toLocaleDateString('vi-VN');
+                const areaName = creator?.fullName ?? 'Khu vực';
+
+                const blogContent = [
+                    `${name}`,
+                    description ? description : '',
+                    `Thời gian: ${startStr} – ${endStr}`,
+                    `Khu vực: ${areaName}`,
+                    `Xem chiến dịch: ${name}`,
+                ].filter(Boolean).join('\n');
+
+                const blogRepo = getBlogRepo();
+                await blogRepo.save(
+                    blogRepo.create({
+                        title: `[Chiến dịch] ${name}`,
+                        content: blogContent,
+                        tags: ['chiến dịch', 'tình nguyện'],
+                        like_count: 0,
+                        author_id: userId,
+                    })
+                );
+            } catch (blogErr) {
+                console.warn('[createCampaign] Could not auto-create blog post:', blogErr);
             }
 
             res.status(200).json(savedCampaign);
