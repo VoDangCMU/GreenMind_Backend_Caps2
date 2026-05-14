@@ -8,13 +8,18 @@ const getStripe = () => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────
-//  Helpers
+//  Helper
 // ─────────────────────────────────────────────────────────────────────────
 
-function log(level: "info" | "warn" | "error", event: string, msg: string) {
+type LogLevel = "info" | "warn" | "error";
+function log(level: LogLevel, event: string, msg: string) {
     const prefix = { info: "✅", warn: "⚠️", error: "❌" }[level];
     console.log(`[Stripe ${prefix}] ${event}: ${msg}`);
 }
+
+// Use a plain object type to avoid Stripe namespace issues across SDK versions
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type StripeObj = Record<string, any>;
 
 // ─────────────────────────────────────────────────────────────────────────
 //  Controller
@@ -23,7 +28,6 @@ function log(level: "info" | "warn" | "error", event: string, msg: string) {
 class PaymentController {
     /**
      * GET /payments/analytics?days=30
-     * Fetches charges from Stripe and builds analytics summary.
      */
     public async getAnalytics(req: Request, res: Response) {
         if (!req.user?.userId) {
@@ -42,7 +46,6 @@ class PaymentController {
             });
 
             const charges = chargesResp.data;
-
             const succeeded = charges.filter(c => c.status === "succeeded");
             const failed    = charges.filter(c => c.status === "failed");
             const refunded  = charges.filter(c => c.refunded);
@@ -89,7 +92,7 @@ class PaymentController {
                 { status: "succeeded", count: succeeded.length, amount: totalRevenue },
                 {
                     status: "pending",
-                    count: charges.filter(c => c.status === "pending").length,
+                    count:  charges.filter(c => c.status === "pending").length,
                     amount: charges.filter(c => c.status === "pending").reduce((a, c) => a + c.amount, 0),
                 },
                 { status: "failed",   count: failed.length,   amount: failed.reduce((a, c) => a + c.amount, 0) },
@@ -123,14 +126,13 @@ class PaymentController {
 
     /**
      * POST /payments/create-checkout
-     * Creates a Stripe Checkout Session.
      */
     public async createCheckout(req: Request, res: Response) {
         if (!req.user?.userId) {
             return res.status(401).json({ message: "Unauthorized" });
         }
 
-        const { amount, currency = "usd", description, successUrl, cancelUrl } = req.body;
+        const { amount, currency = "usd", description, successUrl, cancelUrl } = req.body as StripeObj;
 
         if (!amount || !successUrl || !cancelUrl) {
             return res.status(400).json({ message: "amount, successUrl and cancelUrl are required" });
@@ -141,16 +143,14 @@ class PaymentController {
             const session = await stripe.checkout.sessions.create({
                 mode: "payment",
                 payment_method_types: ["card"],
-                line_items: [
-                    {
-                        price_data: {
-                            currency: (currency as string).toLowerCase(),
-                            product_data: { name: (description as string | undefined) ?? "GreenMind Payment" },
-                            unit_amount: amount as number,
-                        },
-                        quantity: 1,
+                line_items: [{
+                    price_data: {
+                        currency: (currency as string).toLowerCase(),
+                        product_data: { name: (description as string) ?? "GreenMind Payment" },
+                        unit_amount: amount as number,
                     },
-                ],
+                    quantity: 1,
+                }],
                 success_url: successUrl as string,
                 cancel_url:  cancelUrl as string,
                 metadata: { userId: req.user.userId },
@@ -161,36 +161,19 @@ class PaymentController {
                 data: { url: session.url, sessionId: session.id },
             });
         } catch (err) {
-            return res.status(500).json({
-                message: "Failed to create checkout session",
-                error: (err as Error).message,
-            });
+            return res.status(500).json({ message: "Failed to create checkout session", error: (err as Error).message });
         }
     }
 
     /**
      * POST /payments/webhook
-     * Stripe webhook — handles all configured events.
      *
-     * Events to enable in Stripe Dashboard:
-     *   PAYMENT:
-     *     - payment_intent.succeeded
-     *     - payment_intent.payment_failed
-     *     - payment_intent.canceled
-     *   CHARGE:
-     *     - charge.succeeded
-     *     - charge.failed
-     *     - charge.refunded
-     *     - charge.dispute.created
-     *   CHECKOUT:
-     *     - checkout.session.completed
-     *     - checkout.session.expired
-     *   SUBSCRIPTION (optional):
-     *     - customer.subscription.created
-     *     - customer.subscription.updated
-     *     - customer.subscription.deleted
-     *     - invoice.payment_succeeded
-     *     - invoice.payment_failed
+     * Events to enable in Stripe Dashboard → Webhooks:
+     *   payment_intent.succeeded | payment_intent.payment_failed | payment_intent.canceled
+     *   charge.succeeded | charge.failed | charge.refunded | charge.dispute.created
+     *   checkout.session.completed | checkout.session.expired
+     *   customer.subscription.created | .updated | .deleted
+     *   invoice.payment_succeeded | invoice.payment_failed
      */
     public async handleWebhook(req: Request, res: Response) {
         const sig = req.headers["stripe-signature"];
@@ -200,116 +183,91 @@ class PaymentController {
             return res.status(400).json({ message: "Missing Stripe signature or webhook secret" });
         }
 
-        let event: Stripe.Event;
+        const stripe = getStripe();
+
+        let event: ReturnType<typeof stripe.webhooks.constructEvent>;
         try {
-            const stripe = getStripe();
             event = stripe.webhooks.constructEvent(req.body as Buffer, sig, webhookSecret);
         } catch (err) {
-            return res.status(400).json({ message: `Webhook signature verification failed: ${(err as Error).message}` });
+            return res.status(400).json({ message: `Webhook signature failed: ${(err as Error).message}` });
         }
+
+        // Access event data as a plain object to avoid SDK version type conflicts
+        const obj = event.data.object as StripeObj;
 
         try {
             switch (event.type) {
 
-                // ── Payment Intent ────────────────────────────────────
-                case "payment_intent.succeeded": {
-                    const pi = event.data.object as Stripe.PaymentIntent;
-                    log("info", event.type, `id=${pi.id} amount=${pi.amount_received / 100} ${pi.currency.toUpperCase()} user=${pi.metadata?.userId ?? "?"}`);
-                    // TODO: mark order as paid in DB, send confirmation email, update greenScore, etc.
+                // ── Payment Intent ─────────────────────────────────────
+                case "payment_intent.succeeded":
+                    log("info", event.type, `id=${obj.id} amount=${obj.amount_received / 100} ${String(obj.currency).toUpperCase()} user=${obj.metadata?.userId ?? "?"}`);
+                    // TODO: mark order paid, send receipt, update greenScore
                     break;
-                }
 
-                case "payment_intent.payment_failed": {
-                    const pi = event.data.object as Stripe.PaymentIntent;
-                    const reason = pi.last_payment_error?.message ?? "unknown";
-                    log("warn", event.type, `id=${pi.id} reason="${reason}"`);
+                case "payment_intent.payment_failed":
+                    log("warn", event.type, `id=${obj.id} reason="${obj.last_payment_error?.message ?? "unknown"}"`);
                     // TODO: notify user of failure
                     break;
-                }
 
-                case "payment_intent.canceled": {
-                    const pi = event.data.object as Stripe.PaymentIntent;
-                    log("warn", event.type, `id=${pi.id} cancellation_reason=${pi.cancellation_reason}`);
+                case "payment_intent.canceled":
+                    log("warn", event.type, `id=${obj.id} cancellation_reason=${obj.cancellation_reason}`);
                     break;
-                }
 
-                // ── Charge ────────────────────────────────────────────
-                case "charge.succeeded": {
-                    const charge = event.data.object as Stripe.Charge;
-                    log("info", event.type, `id=${charge.id} amount=${charge.amount / 100} ${charge.currency.toUpperCase()}`);
+                // ── Charge ─────────────────────────────────────────────
+                case "charge.succeeded":
+                    log("info", event.type, `id=${obj.id} amount=${obj.amount / 100} ${String(obj.currency).toUpperCase()}`);
                     break;
-                }
 
-                case "charge.failed": {
-                    const charge = event.data.object as Stripe.Charge;
-                    log("warn", event.type, `id=${charge.id} failure="${charge.failure_message}"`);
+                case "charge.failed":
+                    log("warn", event.type, `id=${obj.id} failure="${obj.failure_message}"`);
                     break;
-                }
 
-                case "charge.refunded": {
-                    const charge = event.data.object as Stripe.Charge;
-                    log("info", event.type, `id=${charge.id} refunded=${charge.amount_refunded / 100} ${charge.currency.toUpperCase()}`);
+                case "charge.refunded":
+                    log("info", event.type, `id=${obj.id} refunded=${obj.amount_refunded / 100} ${String(obj.currency).toUpperCase()}`);
                     // TODO: update DB refund status, notify user
                     break;
-                }
 
-                case "charge.dispute.created": {
-                    const dispute = event.data.object as Stripe.Dispute;
-                    log("error", event.type, `id=${dispute.id} charge=${dispute.charge} amount=${dispute.amount / 100} reason=${dispute.reason}`);
-                    // TODO: alert admin, freeze account if needed
+                case "charge.dispute.created":
+                    log("error", event.type, `id=${obj.id} charge=${obj.charge} amount=${obj.amount / 100} reason=${obj.reason}`);
+                    // TODO: alert admin, consider freezing account
                     break;
-                }
 
-                // ── Checkout Session ──────────────────────────────────
-                case "checkout.session.completed": {
-                    const session = event.data.object as Stripe.Checkout.Session;
-                    log("info", event.type, `id=${session.id} customer=${session.customer} total=${(session.amount_total ?? 0) / 100}`);
-                    // TODO: fulfill order, grant premium access, etc.
+                // ── Checkout Session ───────────────────────────────────
+                case "checkout.session.completed":
+                    log("info", event.type, `id=${obj.id} customer=${obj.customer} total=${(obj.amount_total ?? 0) / 100}`);
+                    // TODO: fulfill order, grant premium access
                     break;
-                }
 
-                case "checkout.session.expired": {
-                    const session = event.data.object as Stripe.Checkout.Session;
-                    log("warn", event.type, `id=${session.id} expired without payment`);
-                    // TODO: release reserved inventory if any
+                case "checkout.session.expired":
+                    log("warn", event.type, `id=${obj.id} expired without payment`);
                     break;
-                }
 
-                // ── Subscription ──────────────────────────────────────
-                case "customer.subscription.created": {
-                    const sub = event.data.object as Stripe.Subscription;
-                    log("info", event.type, `id=${sub.id} customer=${sub.customer} status=${sub.status}`);
-                    // TODO: activate premium plan for user
+                // ── Subscription ───────────────────────────────────────
+                case "customer.subscription.created":
+                    log("info", event.type, `id=${obj.id} customer=${obj.customer} status=${obj.status}`);
+                    // TODO: activate premium plan
                     break;
-                }
 
-                case "customer.subscription.updated": {
-                    const sub = event.data.object as Stripe.Subscription;
-                    log("info", event.type, `id=${sub.id} status=${sub.status}`);
+                case "customer.subscription.updated":
+                    log("info", event.type, `id=${obj.id} status=${obj.status}`);
                     // TODO: update user plan in DB
                     break;
-                }
 
-                case "customer.subscription.deleted": {
-                    const sub = event.data.object as Stripe.Subscription;
-                    log("warn", event.type, `id=${sub.id} customer=${sub.customer} — subscription cancelled`);
-                    // TODO: downgrade user to free tier
+                case "customer.subscription.deleted":
+                    log("warn", event.type, `id=${obj.id} customer=${obj.customer} — cancelled`);
+                    // TODO: downgrade to free tier
                     break;
-                }
 
-                case "invoice.payment_succeeded": {
-                    const invoice = event.data.object as Stripe.Invoice;
-                    log("info", event.type, `id=${invoice.id} sub=${invoice.subscription} amount=${(invoice.amount_paid ?? 0) / 100}`);
-                    // TODO: extend subscription period, send receipt
+                // ── Invoice ────────────────────────────────────────────
+                case "invoice.payment_succeeded":
+                    log("info", event.type, `id=${obj.id} sub=${obj.subscription} amount=${(obj.amount_paid ?? 0) / 100}`);
+                    // TODO: extend subscription, send receipt
                     break;
-                }
 
-                case "invoice.payment_failed": {
-                    const invoice = event.data.object as Stripe.Invoice;
-                    log("warn", event.type, `id=${invoice.id} sub=${invoice.subscription} attempt=${invoice.attempt_count}`);
-                    // TODO: notify user, retry logic, suspend access after N failures
+                case "invoice.payment_failed":
+                    log("warn", event.type, `id=${obj.id} sub=${obj.subscription} attempt=${obj.attempt_count}`);
+                    // TODO: notify user, suspend after N failures
                     break;
-                }
 
                 default:
                     log("info", event.type, "unhandled — ignored");
