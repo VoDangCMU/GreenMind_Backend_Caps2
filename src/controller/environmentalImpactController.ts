@@ -4,10 +4,12 @@ import AppDataSource from "../infrastructure/database";
 import { EnvironmentalImpact } from "../entity/environmental_impact";
 import { Locations } from "../entity/locations";
 import { User } from "../entity/user";
-import { Between } from "typeorm";
+import { Between, In } from "typeorm";
 
 const ImpactQuerySchema = z.object({
     range: z.enum(["day", "week", "month"]).default("month"),
+    startDate: z.string().optional(),
+    endDate: z.string().optional(),
 });
 
 const PollutionSchema = z.object({
@@ -51,19 +53,21 @@ async function assertUserExists(userId: string, res: Response): Promise<boolean>
     return true;
 }
 
-function buildDateRange(range: "day" | "week" | "month"): { from: Date; to: Date } {
-    const to = new Date();
-    const from = new Date();
+function buildDateRange(range: "day" | "week" | "month", startDate?: string, endDate?: string): { from: Date; to: Date } {
+    const to = endDate ? new Date(endDate) : new Date();
+    const from = startDate ? new Date(startDate) : new Date();
 
-    if (range === "day") {
-        from.setHours(0, 0, 0, 0);
-    } else if (range === "week") {
-        from.setDate(from.getDate() - 6);
-        from.setHours(0, 0, 0, 0);
-    } else {
-        from.setDate(1);
-        from.setHours(0, 0, 0, 0);
+    if (!startDate) {
+        if (range === "day") {
+            from.setHours(0, 0, 0, 0);
+        } else if (range === "week") {
+            from.setDate(from.getDate() - 7);
+        } else {
+            from.setDate(from.getDate() - 30);
+        }
     }
+    from.setHours(0, 0, 0, 0);
+    to.setHours(23, 59, 59, 999);
 
     return { from, to };
 }
@@ -94,10 +98,62 @@ function mapEntityToPollutionObject(record: EnvironmentalImpact) {
     };
 }
 
+/** Helper: aggregate array of EnvironmentalImpact records into pollution/impact/timeSeries */
+function aggregateRecords(records: EnvironmentalImpact[]) {
+    const pollution = {
+        CO2: 0, dioxin: 0, microplastic: 0, toxic_chemicals: 0,
+        non_biodegradable: 0, NOx: 0, SO2: 0, CH4: 0,
+        "PM2.5": 0, Pb: 0, Hg: 0, Cd: 0,
+        nitrate: 0, chemical_residue: 0, styrene: 0,
+    };
+    let totalAir = 0, totalWater = 0, totalSoil = 0;
+    type PollKey = keyof typeof pollution;
+    const pollutionKeys = Object.keys(pollution) as PollKey[];
+
+    // Group by date label for timeSeries
+    const byDate = new Map<string, { air: number; water: number; soil: number; n: number }>();
+
+    for (const record of records) {
+        const p = mapEntityToPollutionObject(record);
+        for (const key of pollutionKeys) {
+            pollution[key] = parseFloat((pollution[key] + (p[key] ?? 0)).toFixed(4));
+        }
+        totalAir   += record.airPollution;
+        totalWater += record.waterPollution;
+        totalSoil  += record.soilPollution;
+
+        const dateLabel = `${record.recordDate.getDate()}/${record.recordDate.getMonth() + 1}`;
+        const slot = byDate.get(dateLabel) ?? { air: 0, water: 0, soil: 0, n: 0 };
+        slot.air   += record.airPollution;
+        slot.water += record.waterPollution;
+        slot.soil  += record.soilPollution;
+        slot.n     += 1;
+        byDate.set(dateLabel, slot);
+    }
+
+    const count = records.length || 1;
+    const impact = {
+        air:   parseFloat((totalAir   / count).toFixed(4)),
+        water: parseFloat((totalWater / count).toFixed(4)),
+        soil:  parseFloat((totalSoil  / count).toFixed(4)),
+    };
+
+    const timeSeries = Array.from(byDate.entries()).map(([date, v], i) => ({
+        day:   i + 1,
+        date,
+        air:   parseFloat((v.air   / v.n).toFixed(4)),
+        water: parseFloat((v.water / v.n).toFixed(4)),
+        soil:  parseFloat((v.soil  / v.n).toFixed(4)),
+    }));
+
+    return { pollution, impact, timeSeries };
+}
+
 class EnvironmentalImpactController {
     /**
-     * GET /environmental-impact?range=day|week|month
-     * Returns aggregated pollution + impact + time series for the authenticated user
+     * GET /environmental-impact?range=day|week|month&startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
+     * Returns aggregated pollution + impact + timeSeries for the authenticated user.
+     * startDate/endDate override the range preset when provided.
      */
     public async getSummary(req: Request, res: Response) {
         if (!req.user?.userId) {
@@ -109,8 +165,8 @@ class EnvironmentalImpactController {
             return res.status(400).json(parsed.error);
         }
 
-        const { range } = parsed.data;
-        const { from, to } = buildDateRange(range);
+        const { range, startDate, endDate } = parsed.data;
+        const { from, to } = buildDateRange(range, startDate, endDate);
 
         try {
             const records = await ImpactRepo().find({
@@ -125,48 +181,49 @@ class EnvironmentalImpactController {
                 return res.status(404).json({ message: "No environmental impact data found for this period" });
             }
 
-            // Aggregate pollution across all records in range
-            const pollution = {
-                CO2: 0, dioxin: 0, microplastic: 0, toxic_chemicals: 0,
-                non_biodegradable: 0, NOx: 0, SO2: 0, CH4: 0,
-                "PM2.5": 0, Pb: 0, Hg: 0, Cd: 0,
-                nitrate: 0, chemical_residue: 0, styrene: 0,
-            };
-
-            let totalAir = 0;
-            let totalWater = 0;
-            let totalSoil = 0;
-
-            type PollKey = keyof typeof pollution;
-            const pollutionKeys = Object.keys(pollution) as PollKey[];
-
-            for (const record of records) {
-                const p = mapEntityToPollutionObject(record);
-                for (const key of pollutionKeys) {
-                    pollution[key] = parseFloat((pollution[key] + (p[key] ?? 0)).toFixed(4));
-                }
-                totalAir += record.airPollution;
-                totalWater += record.waterPollution;
-                totalSoil += record.soilPollution;
-            }
-
-            const count = records.length;
-            const impact = {
-                air: parseFloat((totalAir / count).toFixed(4)),
-                water: parseFloat((totalWater / count).toFixed(4)),
-                soil: parseFloat((totalSoil / count).toFixed(4)),
-            };
-
-            const timeSeries = records.map((r, i) => ({
-                day: i + 1,
-                air: r.airPollution,
-                water: r.waterPollution,
-                soil: r.soilPollution,
-            }));
+            const { pollution, impact, timeSeries } = aggregateRecords(records);
 
             return res.status(200).json({
                 message: "Environmental impact summary retrieved successfully",
                 data: { pollution, impact, timeSeries },
+            });
+        } catch {
+            return res.status(500).json({ message: "Internal server error" });
+        }
+    }
+
+    /**
+     * GET /environmental-impact/all?range=day|week|month&startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
+     * Admin aggregate: sums data across ALL users for the given date range.
+     */
+    public async getSummaryAll(req: Request, res: Response) {
+        if (!req.user?.userId) {
+            return res.status(401).json({ message: "Unauthorized" });
+        }
+
+        const parsed = ImpactQuerySchema.safeParse(req.query);
+        if (!parsed.success) {
+            return res.status(400).json(parsed.error);
+        }
+
+        const { range, startDate, endDate } = parsed.data;
+        const { from, to } = buildDateRange(range, startDate, endDate);
+
+        try {
+            const records = await ImpactRepo().find({
+                where: { recordDate: Between(from, to) },
+                order: { recordDate: "ASC" },
+            });
+
+            if (records.length === 0) {
+                return res.status(404).json({ message: "No environmental impact data found for this period" });
+            }
+
+            const { pollution, impact, timeSeries } = aggregateRecords(records);
+
+            return res.status(200).json({
+                message: "Environmental impact (all users) retrieved successfully",
+                data: { pollution, impact, timeSeries, recordCount: records.length },
             });
         } catch {
             return res.status(500).json({ message: "Internal server error" });

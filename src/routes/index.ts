@@ -29,6 +29,7 @@ import campaignRouter from "./campaignRoutes";
 import participantCampaignRouter from "./participantCampaignRoutes";
 import collectorRouter from "./collectorRoutes";
 import plantAnalysisRouter from "./plantAnalysisRoutes";
+import paymentRouter from "./paymentRoutes";
 
 const router = Router();
 
@@ -45,7 +46,7 @@ router.use("/behavior-feedbacks", behaviorFeedbackRouter);
 router.use("/user-answers", userAnswersRouter);
 router.use("/scenarios-survey", scenariosSurveyRouter);
 router.use("/models", modelRouter);
-router.use("/daily-spending", dailySpendingRouter)
+router.use("/daily-spending", dailySpendingRouter);
 router.use("/pre-app-survey", preAppSurveyRouter);
 router.use("/todos", todoRouter);
 router.use("/metrics", metricsRouter);
@@ -63,6 +64,7 @@ router.use("/blogs", blogRouter);
 router.use("/campaigns", campaignRouter);
 router.use("/participant-campaigns", participantCampaignRouter);
 router.use("/collectors", collectorRouter);
+router.use("/payments", paymentRouter);
 router.use("/plant-analysis", plantAnalysisRouter);
 
 export default router;
