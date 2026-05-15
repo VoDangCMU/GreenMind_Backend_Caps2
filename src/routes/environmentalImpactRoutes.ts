@@ -27,6 +27,9 @@ router.post("/compute", environmentalImpactController.computeFromLocations);
 // POST /environmental-impact — manual log
 router.post("/", environmentalImpactController.logImpact);
 
+// DELETE /environmental-impact/reset-all — wipe all records (admin: recompute from scratch)
+router.delete("/reset-all", environmentalImpactController.resetAllRecords);
+
 // DELETE /environmental-impact/:id
 router.delete("/:id", environmentalImpactController.deleteRecord);
 
