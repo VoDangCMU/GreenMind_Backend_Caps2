@@ -14,6 +14,10 @@ const ImpactQuerySchema = z.object({
     startDate: z.string().optional(),
     endDate: z.string().optional(),
     urbanAreaId: z.string().optional(),
+    latMin: z.coerce.number().optional(),
+    latMax: z.coerce.number().optional(),
+    lngMin: z.coerce.number().optional(),
+    lngMax: z.coerce.number().optional(),
 });
 
 const PollutionSchema = z.object({
@@ -230,7 +234,7 @@ class EnvironmentalImpactController {
             return res.status(400).json(parsed.error);
         }
 
-        const { range, startDate, endDate, urbanAreaId } = parsed.data;
+        const { range, startDate, endDate, urbanAreaId, latMin, latMax, lngMin, lngMax } = parsed.data;
         const { from, to } = buildDateRange(range, startDate, endDate);
 
         try {
@@ -245,7 +249,13 @@ class EnvironmentalImpactController {
                 .andWhere("wd.createdAt >= :from AND wd.createdAt <= :to", { from, to });
 
             if (urbanAreaId) {
-                qb.andWhere("household.urbanAreaId = :urbanAreaId", { urbanAreaId });
+                qb.andWhere("wd.householdId = :householdId", { householdId: urbanAreaId });
+            }
+
+            // Geographic filter by ward bounds (lat/lng bounding box)
+            if (latMin !== undefined && latMax !== undefined && lngMin !== undefined && lngMax !== undefined) {
+                qb.andWhere("CAST(household.lat AS FLOAT) BETWEEN :latMin AND :latMax", { latMin, latMax })
+                    .andWhere("CAST(household.lng AS FLOAT) BETWEEN :lngMin AND :lngMax", { lngMin, lngMax });
             }
 
             const detections = await qb.getMany();
@@ -332,17 +342,45 @@ class EnvironmentalImpactController {
 
     /**
      * GET /environmental-impact/urban-areas
-     * Returns list of all urban areas for filter dropdown.
+     * Returns distinct households that have at least one pollution scan (WasteDetection).
+     * Used as the "Area" filter dropdown on the dashboard.
+     * Note: urban_areas table is not yet seeded; this derives areas from actual data.
      */
     public async getUrbanAreas(req: Request, res: Response) {
         if (!req.user?.userId) {
             return res.status(401).json({ message: "Unauthorized" });
         }
         try {
-            const areas = await UrbanAreaRepo().find({
-                order: { city: "ASC", name: "ASC" },
-                select: ["id", "name", "city"],
-            });
+            // Get distinct household IDs that have pollution scan data
+            const rows = await AppDataSource
+                .getRepository(WasteDetection)
+                .createQueryBuilder("wd")
+                .leftJoin("wd.household", "household")
+                .select([
+                    "household.id        AS id",
+                    "household.address   AS name",
+                    "household.lat       AS lat",
+                    "household.lng       AS lng",
+                ])
+                .where("wd.pollution IS NOT NULL")
+                .andWhere("wd.detectType IN (:...types)", {
+                    types: [DETECT_TYPE.PREDICT_POLLUTANT, DETECT_TYPE.ANALYZE_ALL],
+                })
+                .andWhere("household.id IS NOT NULL")
+                .groupBy("household.id")
+                .addGroupBy("household.address")
+                .addGroupBy("household.lat")
+                .addGroupBy("household.lng")
+                .orderBy("household.address", "ASC")
+                .getRawMany();
+
+            // Shape to { id, name, city } matching the UrbanArea frontend type
+            const areas = rows.map((r: any) => ({
+                id: r.id,
+                name: r.name ?? "Unknown address",
+                city: r.lat && r.lng ? `${parseFloat(r.lat).toFixed(4)}, ${parseFloat(r.lng).toFixed(4)}` : "",
+            }));
+
             return res.status(200).json({ message: "Urban areas retrieved", data: areas });
         } catch (e) {
             return res.status(500).json({ message: (e as Error).message ?? "Internal server error" });
