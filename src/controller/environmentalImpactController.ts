@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { z } from "zod";
 import AppDataSource from "../infrastructure/database";
 import { EnvironmentalImpact } from "../entity/environmental_impact";
+import { WasteDetection, DETECT_TYPE } from "../entity/WasteDetection";
 import { Locations } from "../entity/locations";
 import { User } from "../entity/user";
 import { Household } from "../entity/household";
@@ -209,8 +210,15 @@ class EnvironmentalImpactController {
     }
 
     /**
-     * GET /environmental-impact/all?range=day|week|month&startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&urbanAreaId=<uuid>
-     * Admin aggregate: sums data across ALL users (or users in a specific urban area).
+     * GET /environmental-impact/all
+     *   ?range=day|week|month
+     *   &startDate=YYYY-MM-DD
+     *   &endDate=YYYY-MM-DD
+     *   &urbanAreaId=<uuid>
+     *
+     * Admin aggregate: uses AI-predicted pollution/impact from WasteDetection
+     * (detectType = predict_pollutant_impact | analyze_all), filtered by urban area.
+     * All values are per-scan averages over the selected period.
      */
     public async getSummaryAll(req: Request, res: Response) {
         if (!req.user?.userId) {
@@ -226,47 +234,84 @@ class EnvironmentalImpactController {
         const { from, to } = buildDateRange(range, startDate, endDate);
 
         try {
-            // If urbanAreaId provided, resolve to list of userIds in that area
-            let userIds: string[] | undefined;
+            const qb = AppDataSource
+                .getRepository(WasteDetection)
+                .createQueryBuilder("wd")
+                .leftJoin("wd.household", "household")
+                .where("wd.pollution IS NOT NULL")
+                .andWhere("wd.detectType IN (:...types)", {
+                    types: [DETECT_TYPE.PREDICT_POLLUTANT, DETECT_TYPE.ANALYZE_ALL],
+                })
+                .andWhere("wd.createdAt >= :from AND wd.createdAt <= :to", { from, to });
+
             if (urbanAreaId) {
-                const households = await HouseholdRepo().find({
-                    where: { urbanAreaId },
-                    select: ["id"],
-                });
-                const householdIds = households.map(h => h.id);
-
-                if (householdIds.length === 0) {
-                    return res.status(404).json({ message: "No users found in this urban area" });
-                }
-
-                const users = await UserRepo().find({
-                    where: { householdId: In(householdIds) },
-                    select: ["id"],
-                });
-                userIds = users.map(u => u.id);
-
-                if (userIds.length === 0) {
-                    return res.status(404).json({ message: "No environmental impact data found for this area" });
-                }
+                qb.andWhere("household.urbanAreaId = :urbanAreaId", { urbanAreaId });
             }
 
-            const records = await ImpactRepo().find({
-                where: {
-                    ...(userIds ? { userId: In(userIds) } : {}),
-                    recordDate: Between(from, to),
-                },
-                order: { recordDate: "ASC" },
-            });
+            const detections = await qb.getMany();
 
-            if (records.length === 0) {
+            if (detections.length === 0) {
                 return res.status(404).json({ message: "No environmental impact data found for this period" });
             }
 
-            const { pollution, impact, timeSeries } = aggregateRecords(records);
+            // Keys returned by the AI pollutant model
+            const pollKeys = [
+                "CO2", "dioxin", "microplastic", "toxic_chemicals", "non_biodegradable",
+                "NOx", "SO2", "CH4", "PM2.5", "Pb", "Hg", "Cd",
+                "nitrate", "chemical_residue", "styrene",
+            ];
+
+            const pollSum: Record<string, number> = Object.fromEntries(pollKeys.map(k => [k, 0]));
+            let totalAir = 0, totalWater = 0, totalSoil = 0;
+            const byDate = new Map<string, { air: number; water: number; soil: number; n: number }>();
+
+            for (const d of detections) {
+                const p = d.pollution as Record<string, number> | null;
+                const imp = d.impact as Record<string, number> | null;
+
+                if (p) {
+                    for (const key of pollKeys) {
+                        pollSum[key] += p[key] ?? 0;
+                    }
+                }
+
+                const air = imp?.air ?? 0;
+                const water = imp?.water ?? 0;
+                const soil = imp?.soil ?? 0;
+                totalAir += air;
+                totalWater += water;
+                totalSoil += soil;
+
+                const dt = d.createdAt instanceof Date ? d.createdAt : new Date(d.createdAt as unknown as string);
+                const dateLabel = `${dt.getDate()}/${dt.getMonth() + 1}`;
+                const slot = byDate.get(dateLabel) ?? { air: 0, water: 0, soil: 0, n: 0 };
+                slot.air += air;
+                slot.water += water;
+                slot.soil += soil;
+                slot.n += 1;
+                byDate.set(dateLabel, slot);
+            }
+
+            const count = detections.length || 1;
+            const pollution = Object.fromEntries(
+                pollKeys.map(k => [k, parseFloat((pollSum[k] / count).toFixed(4))])
+            );
+            const impact = {
+                air: parseFloat((totalAir / count).toFixed(4)),
+                water: parseFloat((totalWater / count).toFixed(4)),
+                soil: parseFloat((totalSoil / count).toFixed(4)),
+            };
+            const timeSeries = Array.from(byDate.entries()).map(([date, v], i) => ({
+                day: i + 1,
+                date,
+                air: parseFloat((v.air / v.n).toFixed(4)),
+                water: parseFloat((v.water / v.n).toFixed(4)),
+                soil: parseFloat((v.soil / v.n).toFixed(4)),
+            }));
 
             return res.status(200).json({
-                message: "Environmental impact (all users) retrieved successfully",
-                data: { pollution, impact, timeSeries, recordCount: records.length },
+                message: "Environmental impact (AI predictions) retrieved successfully",
+                data: { pollution, impact, timeSeries, recordCount: detections.length },
             });
         } catch (e) {
             console.error("[getSummaryAll]", e);
@@ -591,6 +636,26 @@ class EnvironmentalImpactController {
 
             return res.status(200).json({ message: "Record deleted" });
         } catch (e) {
+            return res.status(500).json({ message: (e as Error).message ?? "Internal server error" });
+        }
+    }
+    /**
+     * DELETE /environmental-impact/reset-all
+     * Wipe ALL EnvironmentalImpact records so stale data can be recomputed.
+     * Use after a formula change: DELETE → Compute All Users → fresh data.
+     */
+    public async resetAllRecords(req: Request, res: Response) {
+        if (!req.user?.userId) {
+            return res.status(401).json({ message: "Unauthorized" });
+        }
+        try {
+            const result = await ImpactRepo().delete({});
+            return res.status(200).json({
+                message: "All environmental impact records deleted. Run POST /compute-all to recompute.",
+                deleted: result.affected ?? 0,
+            });
+        } catch (e) {
+            console.error("[resetAllRecords]", e);
             return res.status(500).json({ message: (e as Error).message ?? "Internal server error" });
         }
     }
