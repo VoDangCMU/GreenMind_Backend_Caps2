@@ -274,20 +274,20 @@ class EnvironmentalImpactController {
                 }
 
                 // Derive impact from pollution (AI's impact field is often null)
-                const air   = (p["CO2"] ?? 0) + (p["NOx"] ?? 0) + (p["SO2"] ?? 0) + (p["PM2.5"] ?? 0);
-                const water = (p["Pb"] ?? 0)  + (p["Hg"] ?? 0)  + (p["Cd"] ?? 0)  + (p["nitrate"] ?? 0);
-                const soil  = (p["CH4"] ?? 0) + (p["styrene"] ?? 0) + (p["toxic_chemicals"] ?? 0) + (p["non_biodegradable"] ?? 0);
-                totalAir   += air;
+                const air = (p["CO2"] ?? 0) + (p["NOx"] ?? 0) + (p["SO2"] ?? 0) + (p["PM2.5"] ?? 0);
+                const water = (p["Pb"] ?? 0) + (p["Hg"] ?? 0) + (p["Cd"] ?? 0) + (p["nitrate"] ?? 0);
+                const soil = (p["CH4"] ?? 0) + (p["styrene"] ?? 0) + (p["toxic_chemicals"] ?? 0) + (p["non_biodegradable"] ?? 0);
+                totalAir += air;
                 totalWater += water;
-                totalSoil  += soil;
+                totalSoil += soil;
 
                 const dt = d.createdAt instanceof Date ? d.createdAt : new Date(d.createdAt as unknown as string);
                 const dateLabel = `${dt.getDate()}/${dt.getMonth() + 1}`;
                 const slot = byDate.get(dateLabel) ?? { air: 0, water: 0, soil: 0, n: 0 };
-                slot.air   += air;
+                slot.air += air;
                 slot.water += water;
-                slot.soil  += soil;
-                slot.n     += 1;
+                slot.soil += soil;
+                slot.n += 1;
                 byDate.set(dateLabel, slot);
             }
 
@@ -300,13 +300,25 @@ class EnvironmentalImpactController {
                 water: parseFloat((totalWater / count).toFixed(4)),
                 soil: parseFloat((totalSoil / count).toFixed(4)),
             };
-            const timeSeries = Array.from(byDate.entries()).map(([date, v], i) => ({
-                day: i + 1,
-                date,
-                air: parseFloat((v.air / v.n).toFixed(4)),
-                water: parseFloat((v.water / v.n).toFixed(4)),
-                soil: parseFloat((v.soil / v.n).toFixed(4)),
-            }));
+            // Build timeSeries for EVERY day in the range (fill 0 for days with no scans)
+            const timeSeries: { day: number; date: string; air: number; water: number; soil: number }[] = [];
+            const cursor = new Date(from);
+            cursor.setHours(0, 0, 0, 0);
+            const endDay = new Date(to);
+            endDay.setHours(0, 0, 0, 0);
+            let dayIndex = 1;
+            while (cursor <= endDay) {
+                const label = `${cursor.getDate()}/${cursor.getMonth() + 1}`;
+                const slot = byDate.get(label);
+                timeSeries.push({
+                    day: dayIndex++,
+                    date: label,
+                    air: slot ? parseFloat((slot.air / slot.n).toFixed(4)) : 0,
+                    water: slot ? parseFloat((slot.water / slot.n).toFixed(4)) : 0,
+                    soil: slot ? parseFloat((slot.soil / slot.n).toFixed(4)) : 0,
+                });
+                cursor.setDate(cursor.getDate() + 1);
+            }
 
             return res.status(200).json({
                 message: "Environmental impact (AI predictions) retrieved successfully",
