@@ -6,7 +6,10 @@ const router = Router();
 
 router.use(jwtAuthMiddleware);
 
-// GET /environmental-impact/all?range=day|week|month&startDate=YYYY-MM-DD&endDate=YYYY-MM-DD (admin: all users)
+// GET /environmental-impact/urban-areas — list of urban areas for filter dropdown
+router.get("/urban-areas", environmentalImpactController.getUrbanAreas);
+
+// GET /environmental-impact/all?range=day|week|month&urbanAreaId=<uuid> (admin: all users)
 router.get("/all", environmentalImpactController.getSummaryAll);
 
 // GET /environmental-impact?range=day|week|month&startDate=YYYY-MM-DD&endDate=YYYY-MM-DD

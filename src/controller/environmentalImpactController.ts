@@ -4,12 +4,15 @@ import AppDataSource from "../infrastructure/database";
 import { EnvironmentalImpact } from "../entity/environmental_impact";
 import { Locations } from "../entity/locations";
 import { User } from "../entity/user";
+import { Household } from "../entity/household";
+import { UrbanArea } from "../entity/urban_area";
 import { Between, In } from "typeorm";
 
 const ImpactQuerySchema = z.object({
     range: z.enum(["day", "week", "month"]).default("month"),
     startDate: z.string().optional(),
     endDate: z.string().optional(),
+    urbanAreaId: z.string().optional(),
 });
 
 const PollutionSchema = z.object({
@@ -43,6 +46,8 @@ const ImpactBodySchema = z.object({
 const ImpactRepo = () => AppDataSource.getRepository(EnvironmentalImpact);
 const LocationRepo = () => AppDataSource.getRepository(Locations);
 const UserRepo = () => AppDataSource.getRepository(User);
+const HouseholdRepo = () => AppDataSource.getRepository(Household);
+const UrbanAreaRepo = () => AppDataSource.getRepository(UrbanArea);
 
 async function assertUserExists(userId: string, res: Response): Promise<boolean> {
     const exists = await UserRepo().findOne({ where: { id: userId }, select: ["id"] });
@@ -193,8 +198,8 @@ class EnvironmentalImpactController {
     }
 
     /**
-     * GET /environmental-impact/all?range=day|week|month&startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
-     * Admin aggregate: sums data across ALL users for the given date range.
+     * GET /environmental-impact/all?range=day|week|month&startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&urbanAreaId=<uuid>
+     * Admin aggregate: sums data across ALL users (or users in a specific urban area).
      */
     public async getSummaryAll(req: Request, res: Response) {
         if (!req.user?.userId) {
@@ -206,12 +211,39 @@ class EnvironmentalImpactController {
             return res.status(400).json(parsed.error);
         }
 
-        const { range, startDate, endDate } = parsed.data;
+        const { range, startDate, endDate, urbanAreaId } = parsed.data;
         const { from, to } = buildDateRange(range, startDate, endDate);
 
         try {
+            // If urbanAreaId provided, resolve to list of userIds in that area
+            let userIds: string[] | undefined;
+            if (urbanAreaId) {
+                const households = await HouseholdRepo().find({
+                    where: { urbanAreaId },
+                    select: ["id"],
+                });
+                const householdIds = households.map(h => h.id);
+
+                if (householdIds.length === 0) {
+                    return res.status(404).json({ message: "No users found in this urban area" });
+                }
+
+                const users = await UserRepo().find({
+                    where: { householdId: In(householdIds) },
+                    select: ["id"],
+                });
+                userIds = users.map(u => u.id);
+
+                if (userIds.length === 0) {
+                    return res.status(404).json({ message: "No environmental impact data found for this area" });
+                }
+            }
+
             const records = await ImpactRepo().find({
-                where: { recordDate: Between(from, to) },
+                where: {
+                    ...(userIds ? { userId: In(userIds) } : {}),
+                    recordDate: Between(from, to),
+                },
                 order: { recordDate: "ASC" },
             });
 
@@ -225,6 +257,25 @@ class EnvironmentalImpactController {
                 message: "Environmental impact (all users) retrieved successfully",
                 data: { pollution, impact, timeSeries, recordCount: records.length },
             });
+        } catch {
+            return res.status(500).json({ message: "Internal server error" });
+        }
+    }
+
+    /**
+     * GET /environmental-impact/urban-areas
+     * Returns list of all urban areas for filter dropdown.
+     */
+    public async getUrbanAreas(req: Request, res: Response) {
+        if (!req.user?.userId) {
+            return res.status(401).json({ message: "Unauthorized" });
+        }
+        try {
+            const areas = await UrbanAreaRepo().find({
+                order: { city: "ASC", name: "ASC" },
+                select: ["id", "name", "city"],
+            });
+            return res.status(200).json({ message: "Urban areas retrieved", data: areas });
         } catch {
             return res.status(500).json({ message: "Internal server error" });
         }
