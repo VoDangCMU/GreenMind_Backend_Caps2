@@ -7,6 +7,7 @@ const router = Router();
 
 router.post('/', jwtAuthMiddleware, campaignController.createCampaign);
 router.get('/', jwtAuthMiddleware, campaignController.getAllCampaigns);
+router.get('/my-created-and-joined', jwtAuthMiddleware, campaignController.getMyCreatedAndJoinedCampaigns);
 router.get('/chat-list', jwtAuthMiddleware, campaignController.getUserChatList);
 
 router.get('/:id/messages', jwtAuthMiddleware, campaignController.getCampaignMessages);
