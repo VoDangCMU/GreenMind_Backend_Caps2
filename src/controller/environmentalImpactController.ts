@@ -115,7 +115,6 @@ function aggregateRecords(records: EnvironmentalImpact[]) {
     type PollKey = keyof typeof pollution;
     const pollutionKeys = Object.keys(pollution) as PollKey[];
 
-    // Group by date label for timeSeries
     const byDate = new Map<string, { air: number; water: number; soil: number; n: number }>();
 
     for (const record of records) {
@@ -123,32 +122,37 @@ function aggregateRecords(records: EnvironmentalImpact[]) {
         for (const key of pollutionKeys) {
             pollution[key] = parseFloat((pollution[key] + (p[key] ?? 0)).toFixed(4));
         }
-        totalAir   += record.airPollution;
-        totalWater += record.waterPollution;
-        totalSoil  += record.soilPollution;
+        totalAir += record.airPollution ?? 0;
+        totalWater += record.waterPollution ?? 0;
+        totalSoil += record.soilPollution ?? 0;
 
-        const dateLabel = `${record.recordDate.getDate()}/${record.recordDate.getMonth() + 1}`;
+        // TypeORM returns date columns as strings from Postgres — cast defensively
+        const d = record.recordDate instanceof Date
+            ? record.recordDate
+            : new Date(record.recordDate);
+        const dateLabel = `${d.getDate()}/${d.getMonth() + 1}`;
+
         const slot = byDate.get(dateLabel) ?? { air: 0, water: 0, soil: 0, n: 0 };
-        slot.air   += record.airPollution;
-        slot.water += record.waterPollution;
-        slot.soil  += record.soilPollution;
-        slot.n     += 1;
+        slot.air += record.airPollution ?? 0;
+        slot.water += record.waterPollution ?? 0;
+        slot.soil += record.soilPollution ?? 0;
+        slot.n += 1;
         byDate.set(dateLabel, slot);
     }
 
     const count = records.length || 1;
     const impact = {
-        air:   parseFloat((totalAir   / count).toFixed(4)),
+        air: parseFloat((totalAir / count).toFixed(4)),
         water: parseFloat((totalWater / count).toFixed(4)),
-        soil:  parseFloat((totalSoil  / count).toFixed(4)),
+        soil: parseFloat((totalSoil / count).toFixed(4)),
     };
 
     const timeSeries = Array.from(byDate.entries()).map(([date, v], i) => ({
-        day:   i + 1,
+        day: i + 1,
         date,
-        air:   parseFloat((v.air   / v.n).toFixed(4)),
+        air: parseFloat((v.air / v.n).toFixed(4)),
         water: parseFloat((v.water / v.n).toFixed(4)),
-        soil:  parseFloat((v.soil  / v.n).toFixed(4)),
+        soil: parseFloat((v.soil / v.n).toFixed(4)),
     }));
 
     return { pollution, impact, timeSeries };
@@ -192,8 +196,9 @@ class EnvironmentalImpactController {
                 message: "Environmental impact summary retrieved successfully",
                 data: { pollution, impact, timeSeries },
             });
-        } catch {
-            return res.status(500).json({ message: "Internal server error" });
+        } catch (e) {
+            console.error("[getSummary]", e);
+            return res.status(500).json({ message: (e as Error).message ?? "Internal server error" });
         }
     }
 
@@ -257,8 +262,9 @@ class EnvironmentalImpactController {
                 message: "Environmental impact (all users) retrieved successfully",
                 data: { pollution, impact, timeSeries, recordCount: records.length },
             });
-        } catch {
-            return res.status(500).json({ message: "Internal server error" });
+        } catch (e) {
+            console.error("[getSummaryAll]", e);
+            return res.status(500).json({ message: (e as Error).message ?? "Internal server error" });
         }
     }
 
@@ -276,8 +282,8 @@ class EnvironmentalImpactController {
                 select: ["id", "name", "city"],
             });
             return res.status(200).json({ message: "Urban areas retrieved", data: areas });
-        } catch {
-            return res.status(500).json({ message: "Internal server error" });
+        } catch (e) {
+            return res.status(500).json({ message: (e as Error).message ?? "Internal server error" });
         }
     }
 
@@ -344,8 +350,8 @@ class EnvironmentalImpactController {
                 message: existing ? "Environmental impact updated" : "Environmental impact logged",
                 data: saved,
             });
-        } catch {
-            return res.status(500).json({ message: "Internal server error" });
+        } catch (e) {
+            return res.status(500).json({ message: (e as Error).message ?? "Internal server error" });
         }
     }
 
@@ -374,8 +380,8 @@ class EnvironmentalImpactController {
                 data: records,
                 pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
             });
-        } catch {
-            return res.status(500).json({ message: "Internal server error" });
+        } catch (e) {
+            return res.status(500).json({ message: (e as Error).message ?? "Internal server error" });
         }
     }
 
@@ -453,14 +459,14 @@ class EnvironmentalImpactController {
                 message: "Environmental impact computed and saved",
                 data: saved,
             });
-        } catch {
-            return res.status(500).json({ message: "Internal server error" });
+        } catch (e) {
+            return res.status(500).json({ message: (e as Error).message ?? "Internal server error" });
         }
     }
 
     /**
      * POST /environmental-impact/compute-all
-     * Compute today's environmental impact for ALL users based on location data.
+     * Compute today's environmental impact for ALL users — uses batch queries to avoid N+1.
      */
     public async computeAllUsers(req: Request, res: Response) {
         const today = startOfDay(new Date());
@@ -469,86 +475,85 @@ class EnvironmentalImpactController {
 
         try {
             const allUsers = await UserRepo().find({ select: ["id"] });
+            if (allUsers.length === 0) {
+                return res.status(200).json({ message: "No users found", data: { total: 0, success: 0, skipped: 0, failed: 0 } });
+            }
 
-            let successCount = 0;
+            const userIds = allUsers.map(u => u.id);
+
+            // Batch: all locations for today in 1 query
+            const allLocations = await LocationRepo().find({
+                where: { createdAt: Between(today, tomorrow) },
+                select: ["userId", "lengthToPreviousLocation"],
+            });
+
+            // Group by userId
+            const distanceByUser = new Map<string, number>();
+            for (const loc of allLocations) {
+                distanceByUser.set(
+                    loc.userId,
+                    (distanceByUser.get(loc.userId) ?? 0) + (loc.lengthToPreviousLocation ?? 0)
+                );
+            }
+
+            // Batch: all existing impacts for today in 1 query
+            const existingImpacts = await ImpactRepo().find({
+                where: { userId: In(userIds), recordDate: Between(today, tomorrow) },
+                select: ["id", "userId"],
+            });
+            const existingByUser = new Map(existingImpacts.map(e => [e.userId, e]));
+
+            const toSave: EnvironmentalImpact[] = [];
             let skippedCount = 0;
-            const errors: string[] = [];
 
             for (const user of allUsers) {
-                try {
-                    const locations = await LocationRepo().find({
-                        where: {
-                            userId: user.id,
-                            createdAt: Between(today, tomorrow),
-                        },
-                        order: { createdAt: "ASC" },
-                    });
+                const distanceKm = distanceByUser.get(user.id) ?? 0;
+                const existing = existingByUser.get(user.id);
 
-                    const distanceKm = locations.reduce(
-                        (acc, loc) => acc + (loc.lengthToPreviousLocation ?? 0),
-                        0
-                    );
+                if (distanceKm === 0 && !existing) { skippedCount++; continue; }
 
-                    const existing = await ImpactRepo().findOne({
-                        where: { userId: user.id, recordDate: today },
-                    });
+                const base = distanceKm * 0.21;
+                const pollution = {
+                    co2: parseFloat((base * 2.0).toFixed(4)),
+                    dioxin: parseFloat((base * 0.005).toFixed(4)),
+                    microplastic: parseFloat((base * 0.01).toFixed(4)),
+                    toxicChemicals: parseFloat((base * 0.15).toFixed(4)),
+                    nonBiodegradable: parseFloat((base * 0.12).toFixed(4)),
+                    nox: parseFloat((base * 0.48).toFixed(4)),
+                    so2: parseFloat((base * 0.35).toFixed(4)),
+                    ch4: parseFloat((base * 0.43).toFixed(4)),
+                    pm25: parseFloat((base * 0.74).toFixed(4)),
+                    pb: parseFloat((base * 0.10).toFixed(4)),
+                    hg: parseFloat((base * 0.07).toFixed(4)),
+                    cd: parseFloat((base * 0.04).toFixed(4)),
+                    nitrate: parseFloat((base * 0.20).toFixed(4)),
+                    chemicalResidue: parseFloat((base * 0.08).toFixed(4)),
+                    styrene: parseFloat((base * 0.06).toFixed(4)),
+                };
+                const airPollution = parseFloat((pollution.co2 + pollution.nox + pollution.so2 + pollution.pm25).toFixed(4));
+                const waterPollution = parseFloat((pollution.pb + pollution.hg + pollution.cd + pollution.nitrate).toFixed(4));
+                const soilPollution = parseFloat((pollution.ch4 + pollution.styrene + pollution.toxicChemicals + pollution.nonBiodegradable).toFixed(4));
 
-                    if (distanceKm === 0 && !existing) {
-                        skippedCount++;
-                        continue;
-                    }
-
-                    const base = distanceKm * 0.21;
-                    const pollution = {
-                        co2: parseFloat((base * 2.0).toFixed(4)),
-                        dioxin: parseFloat((base * 0.005).toFixed(4)),
-                        microplastic: parseFloat((base * 0.01).toFixed(4)),
-                        toxicChemicals: parseFloat((base * 0.15).toFixed(4)),
-                        nonBiodegradable: parseFloat((base * 0.12).toFixed(4)),
-                        nox: parseFloat((base * 0.48).toFixed(4)),
-                        so2: parseFloat((base * 0.35).toFixed(4)),
-                        ch4: parseFloat((base * 0.43).toFixed(4)),
-                        pm25: parseFloat((base * 0.74).toFixed(4)),
-                        pb: parseFloat((base * 0.10).toFixed(4)),
-                        hg: parseFloat((base * 0.07).toFixed(4)),
-                        cd: parseFloat((base * 0.04).toFixed(4)),
-                        nitrate: parseFloat((base * 0.20).toFixed(4)),
-                        chemicalResidue: parseFloat((base * 0.08).toFixed(4)),
-                        styrene: parseFloat((base * 0.06).toFixed(4)),
-                    };
-
-                    const airPollution = parseFloat((pollution.co2 + pollution.nox + pollution.so2 + pollution.pm25).toFixed(4));
-                    const waterPollution = parseFloat((pollution.pb + pollution.hg + pollution.cd + pollution.nitrate).toFixed(4));
-                    const soilPollution = parseFloat((pollution.ch4 + pollution.styrene + pollution.toxicChemicals + pollution.nonBiodegradable).toFixed(4));
-
-                    const record = existing ?? ImpactRepo().create({ userId: user.id });
-                    Object.assign(record, {
-                        recordDate: today,
-                        ...pollution,
-                        airPollution,
-                        waterPollution,
-                        soilPollution,
-                    });
-
-                    await ImpactRepo().save(record);
-                    successCount++;
-                } catch (e) {
-                    errors.push(`user:${user.id} — ${(e as Error).message}`);
-                }
+                const record = existing ?? ImpactRepo().create({ userId: user.id });
+                Object.assign(record, { recordDate: today, ...pollution, airPollution, waterPollution, soilPollution });
+                toSave.push(record);
             }
+
+            // Bulk save
+            await ImpactRepo().save(toSave, { chunk: 100 });
 
             return res.status(200).json({
                 message: "Compute-all finished",
                 data: {
                     total: allUsers.length,
-                    success: successCount,
+                    success: toSave.length,
                     skipped: skippedCount,
-                    failed: errors.length,
-                    errors,
+                    failed: 0,
                 },
             });
-        } catch {
-            return res.status(500).json({ message: "Internal server error" });
+        } catch (e) {
+            console.error("[computeAllUsers]", e);
+            return res.status(500).json({ message: (e as Error).message ?? "Internal server error" });
         }
     }
 
@@ -577,8 +582,8 @@ class EnvironmentalImpactController {
             await ImpactRepo().remove(record);
 
             return res.status(200).json({ message: "Record deleted" });
-        } catch {
-            return res.status(500).json({ message: "Internal server error" });
+        } catch (e) {
+            return res.status(500).json({ message: (e as Error).message ?? "Internal server error" });
         }
     }
 }
