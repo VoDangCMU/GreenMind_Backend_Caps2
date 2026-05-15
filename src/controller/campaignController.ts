@@ -489,7 +489,7 @@ class CampaignController {
         }
     };
 
-    public getMyCreatedCampaigns: RequestHandler = async (req: Request, res: Response) => {
+    public getMyCreatedAndJoinedCampaigns: RequestHandler = async (req: Request, res: Response) => {
         try {
             const userId = req.user?.userId;
             if (!userId) {
@@ -498,13 +498,38 @@ class CampaignController {
             }
 
             const campaignRepo = getCampaignRepo();
-            const campaigns = await campaignRepo.find({
+            const participantRepo = getParticipantRepo();
+
+            const participantRecords = await participantRepo.find({
+                where: [
+                    { userId: userId, status: ParticipantStatus.APPROVED },
+                    { userId: userId, status: ParticipantStatus.CHECKED_IN },
+                    { userId: userId, status: ParticipantStatus.COMPLETED }
+                ],
+                select: ['campaignId']
+            });
+
+            const campaignIds = participantRecords.map(p => p.campaignId);
+
+            const createdCampaigns = await campaignRepo.find({
                 where: { createdByUserId: userId },
                 relations: ['reports', 'createdBy', 'participants', 'participants.user'],
                 order: { createdAt: 'DESC' }
             });
 
-            const responseData = campaigns.map(c => ({
+            let participatedCampaigns: Campaign[] = [];
+            if (campaignIds.length > 0) {
+                participatedCampaigns = await campaignRepo.find({
+                    where: { id: In(campaignIds) },
+                    relations: ['reports', 'createdBy', 'participants', 'participants.user'],
+                    order: { createdAt: 'DESC' }
+                });
+            }
+
+            const createdByCurrentUserIds = new Set(createdCampaigns.map(c => c.id));
+            participatedCampaigns = participatedCampaigns.filter(c => !createdByCurrentUserIds.has(c.id));
+
+            const formatCampaign = (c: Campaign) => ({
                 ...c,
                 createdBy: c.createdBy ? { id: c.createdBy.id, fullName: c.createdBy.fullName } : null,
                 participantsCount: c.participants ? c.participants.length : 0,
@@ -520,12 +545,15 @@ class CampaignController {
                         phoneNumber: p.user.phoneNumber
                     } : null
                 }))
-            }));
+            });
 
-            res.status(200).json(responseData);
+            res.status(200).json({
+                created: createdCampaigns.map(formatCampaign),
+                participated: participatedCampaigns.map(formatCampaign)
+            });
             return;
         } catch (error) {
-            console.error('[getMyCreatedCampaigns]', error);
+            console.error('[getMyCreatedAndJoinedCampaigns]', error);
             res.status(500).json({ message: 'Internal server error' });
             return;
         }
