@@ -140,13 +140,19 @@ function aggregateRecords(records: EnvironmentalImpact[]) {
         byDate.set(dateLabel, slot);
     }
 
+    // Average per user — all metrics are per-user averages for the selected area
     const count = records.length || 1;
+    for (const key of pollutionKeys) {
+        pollution[key] = parseFloat((pollution[key] / count).toFixed(4));
+    }
+
     const impact = {
         air: parseFloat((totalAir / count).toFixed(4)),
         water: parseFloat((totalWater / count).toFixed(4)),
         soil: parseFloat((totalSoil / count).toFixed(4)),
     };
 
+    // Daily averages for timeSeries
     const timeSeries = Array.from(byDate.entries()).map(([date, v], i) => ({
         day: i + 1,
         date,
@@ -411,29 +417,29 @@ class EnvironmentalImpactController {
                 order: { createdAt: "ASC" },
             });
 
+            // lengthToPreviousLocation is stored in metres → convert to km
             const distanceKm = locations.reduce(
                 (acc, loc) => acc + (loc.lengthToPreviousLocation ?? 0),
                 0
-            );
+            ) / 1000;
 
-            // Emission factors per km (transport-based estimates)
-            const base = distanceKm * 0.21;
+            // Emission factors per km (kg) — avg petrol car ~0.12 kg CO2/km
             const pollution = {
-                co2: parseFloat((base * 2.0).toFixed(4)),
-                dioxin: parseFloat((base * 0.005).toFixed(4)),
-                microplastic: parseFloat((base * 0.01).toFixed(4)),
-                toxicChemicals: parseFloat((base * 0.15).toFixed(4)),
-                nonBiodegradable: parseFloat((base * 0.12).toFixed(4)),
-                nox: parseFloat((base * 0.48).toFixed(4)),
-                so2: parseFloat((base * 0.35).toFixed(4)),
-                ch4: parseFloat((base * 0.43).toFixed(4)),
-                pm25: parseFloat((base * 0.74).toFixed(4)),
-                pb: parseFloat((base * 0.10).toFixed(4)),
-                hg: parseFloat((base * 0.07).toFixed(4)),
-                cd: parseFloat((base * 0.04).toFixed(4)),
-                nitrate: parseFloat((base * 0.20).toFixed(4)),
-                chemicalResidue: parseFloat((base * 0.08).toFixed(4)),
-                styrene: parseFloat((base * 0.06).toFixed(4)),
+                co2: parseFloat((distanceKm * 0.12).toFixed(4)),
+                dioxin: parseFloat((distanceKm * 0.0001).toFixed(4)),
+                microplastic: parseFloat((distanceKm * 0.0005).toFixed(4)),
+                toxicChemicals: parseFloat((distanceKm * 0.002).toFixed(4)),
+                nonBiodegradable: parseFloat((distanceKm * 0.001).toFixed(4)),
+                nox: parseFloat((distanceKm * 0.0004).toFixed(4)),
+                so2: parseFloat((distanceKm * 0.0003).toFixed(4)),
+                ch4: parseFloat((distanceKm * 0.004).toFixed(4)),
+                pm25: parseFloat((distanceKm * 0.0001).toFixed(4)),
+                pb: parseFloat((distanceKm * 0.00002).toFixed(4)),
+                hg: parseFloat((distanceKm * 0.000005).toFixed(4)),
+                cd: parseFloat((distanceKm * 0.000002).toFixed(4)),
+                nitrate: parseFloat((distanceKm * 0.0008).toFixed(4)),
+                chemicalResidue: parseFloat((distanceKm * 0.0005).toFixed(4)),
+                styrene: parseFloat((distanceKm * 0.0003).toFixed(4)),
             };
 
             const airPollution = parseFloat((pollution.co2 + pollution.nox + pollution.so2 + pollution.pm25).toFixed(4));
@@ -487,7 +493,7 @@ class EnvironmentalImpactController {
                 select: ["userId", "lengthToPreviousLocation"],
             });
 
-            // Group by userId
+            // Group by userId — distanceByUser values are in metres
             const distanceByUser = new Map<string, number>();
             for (const loc of allLocations) {
                 distanceByUser.set(
@@ -507,28 +513,30 @@ class EnvironmentalImpactController {
             let skippedCount = 0;
 
             for (const user of allUsers) {
-                const distanceKm = distanceByUser.get(user.id) ?? 0;
+                // Convert metres → km
+                const distanceKm = (distanceByUser.get(user.id) ?? 0) / 1000;
                 const existing = existingByUser.get(user.id);
 
                 if (distanceKm === 0 && !existing) { skippedCount++; continue; }
 
                 const base = distanceKm * 0.21;
                 const pollution = {
-                    co2: parseFloat((base * 2.0).toFixed(4)),
-                    dioxin: parseFloat((base * 0.005).toFixed(4)),
-                    microplastic: parseFloat((base * 0.01).toFixed(4)),
-                    toxicChemicals: parseFloat((base * 0.15).toFixed(4)),
-                    nonBiodegradable: parseFloat((base * 0.12).toFixed(4)),
-                    nox: parseFloat((base * 0.48).toFixed(4)),
-                    so2: parseFloat((base * 0.35).toFixed(4)),
-                    ch4: parseFloat((base * 0.43).toFixed(4)),
-                    pm25: parseFloat((base * 0.74).toFixed(4)),
-                    pb: parseFloat((base * 0.10).toFixed(4)),
-                    hg: parseFloat((base * 0.07).toFixed(4)),
-                    cd: parseFloat((base * 0.04).toFixed(4)),
-                    nitrate: parseFloat((base * 0.20).toFixed(4)),
-                    chemicalResidue: parseFloat((base * 0.08).toFixed(4)),
-                    styrene: parseFloat((base * 0.06).toFixed(4)),
+                    // Emission factors per km (kg) — avg petrol car ~0.12 kg CO2/km
+                    co2: parseFloat((distanceKm * 0.12).toFixed(4)),
+                    dioxin: parseFloat((distanceKm * 0.0001).toFixed(4)),
+                    microplastic: parseFloat((distanceKm * 0.0005).toFixed(4)),
+                    toxicChemicals: parseFloat((distanceKm * 0.002).toFixed(4)),
+                    nonBiodegradable: parseFloat((distanceKm * 0.001).toFixed(4)),
+                    nox: parseFloat((distanceKm * 0.0004).toFixed(4)),
+                    so2: parseFloat((distanceKm * 0.0003).toFixed(4)),
+                    ch4: parseFloat((distanceKm * 0.004).toFixed(4)),
+                    pm25: parseFloat((distanceKm * 0.0001).toFixed(4)),
+                    pb: parseFloat((distanceKm * 0.00002).toFixed(4)),
+                    hg: parseFloat((distanceKm * 0.000005).toFixed(4)),
+                    cd: parseFloat((distanceKm * 0.000002).toFixed(4)),
+                    nitrate: parseFloat((distanceKm * 0.0008).toFixed(4)),
+                    chemicalResidue: parseFloat((distanceKm * 0.0005).toFixed(4)),
+                    styrene: parseFloat((distanceKm * 0.0003).toFixed(4)),
                 };
                 const airPollution = parseFloat((pollution.co2 + pollution.nox + pollution.so2 + pollution.pm25).toFixed(4));
                 const waterPollution = parseFloat((pollution.pb + pollution.hg + pollution.cd + pollution.nitrate).toFixed(4));
