@@ -267,28 +267,27 @@ class EnvironmentalImpactController {
 
             for (const d of detections) {
                 const p = d.pollution as Record<string, number> | null;
-                const imp = d.impact as Record<string, number> | null;
+                if (!p) continue;
 
-                if (p) {
-                    for (const key of pollKeys) {
-                        pollSum[key] += p[key] ?? 0;
-                    }
+                for (const key of pollKeys) {
+                    pollSum[key] += p[key] ?? 0;
                 }
 
-                const air = imp?.air ?? 0;
-                const water = imp?.water ?? 0;
-                const soil = imp?.soil ?? 0;
-                totalAir += air;
+                // Derive impact from pollution (AI's impact field is often null)
+                const air   = (p["CO2"] ?? 0) + (p["NOx"] ?? 0) + (p["SO2"] ?? 0) + (p["PM2.5"] ?? 0);
+                const water = (p["Pb"] ?? 0)  + (p["Hg"] ?? 0)  + (p["Cd"] ?? 0)  + (p["nitrate"] ?? 0);
+                const soil  = (p["CH4"] ?? 0) + (p["styrene"] ?? 0) + (p["toxic_chemicals"] ?? 0) + (p["non_biodegradable"] ?? 0);
+                totalAir   += air;
                 totalWater += water;
-                totalSoil += soil;
+                totalSoil  += soil;
 
                 const dt = d.createdAt instanceof Date ? d.createdAt : new Date(d.createdAt as unknown as string);
                 const dateLabel = `${dt.getDate()}/${dt.getMonth() + 1}`;
                 const slot = byDate.get(dateLabel) ?? { air: 0, water: 0, soil: 0, n: 0 };
-                slot.air += air;
+                slot.air   += air;
                 slot.water += water;
-                slot.soil += soil;
-                slot.n += 1;
+                slot.soil  += soil;
+                slot.n     += 1;
                 byDate.set(dateLabel, slot);
             }
 
