@@ -89,6 +89,15 @@ export class WasteDetection {
     @Column({ type: 'timestamp', nullable: true })
     pickedUpAt?: Date;
 
+    @Column({ type: 'boolean', default: false })
+    isPaid!: boolean;
+
+    @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+    billAmount?: number;   // tính sẵn: totalMassKg × 500
+
+    @Column({ type: 'timestamp', nullable: true })
+    paidAt?: Date;
+
     @CreateDateColumn()
     createdAt!: Date;
 
