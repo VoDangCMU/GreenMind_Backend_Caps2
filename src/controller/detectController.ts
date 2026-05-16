@@ -52,24 +52,14 @@ export class DetectTrashController {
             const contentType = responseURL.headers["content-type"] || "application/octet-stream";
 
             const detectFormData = createFormData(buffer, contentType);
-            const segmentFormData = createFormData(buffer, contentType);
 
-            const [detectResult, segmentResult] = await Promise.all([
-                axios.post(DETECT_TRASH_URL, detectFormData, {
-                    headers: {
-                        ...detectFormData.getHeaders(),
-                    },
-                    maxContentLength: Infinity,
-                    maxBodyLength: Infinity
-                }),
-                axios.post(SEGMENT_URL, segmentFormData, {
-                    headers: {
-                        ...segmentFormData.getHeaders(),
-                    },
-                    maxContentLength: Infinity,
-                    maxBodyLength: Infinity
-                })
-            ]);
+            const detectResult = await axios.post(DETECT_TRASH_URL, detectFormData, {
+                headers: {
+                    ...detectFormData.getHeaders(),
+                },
+                maxContentLength: Infinity,
+                maxBodyLength: Infinity
+            });
 
             const wasteDetection = WasteDetectionRepository.create({
                 imageUrl: imageUrl,
@@ -81,7 +71,6 @@ export class DetectTrashController {
                 status: STATUS.DETECTED,
                 householdId: user?.householdId,
                 aiAnalysis: detectResult.data.image_url,
-                segments: segmentResult.data.grouped,
             });
             await WasteDetectionRepository.save(wasteDetection);
 
@@ -117,22 +106,13 @@ export class DetectTrashController {
 
             const predictFormData = createFormData(buffer, contentType);
 
-            const [predictResult, segmentResult] = await Promise.all([
-                axios.post(PREDICT_POLLUTANT_URL, createFormData(buffer, contentType), {
-                    headers: {
-                        ...createFormData(buffer, contentType).getHeaders()
-                    },
-                    maxContentLength: Infinity,
-                    maxBodyLength: Infinity
-                }),
-                axios.post(SEGMENT_URL, createFormData(buffer, contentType), {
-                    headers: {
-                        ...createFormData(buffer, contentType).getHeaders()
-                    },
-                    maxContentLength: Infinity,
-                    maxBodyLength: Infinity
-                })
-            ]);
+            const predictResult = await axios.post(PREDICT_POLLUTANT_URL, predictFormData, {
+                headers: {
+                    ...predictFormData.getHeaders()
+                },
+                maxContentLength: Infinity,
+                maxBodyLength: Infinity
+            });
 
             const wasteDetection = WasteDetectionRepository.create({
                 imageUrl: imageUrl,
@@ -145,7 +125,6 @@ export class DetectTrashController {
                 detectType: DETECT_TYPE.PREDICT_POLLUTANT,
                 householdId: user?.householdId,
                 aiAnalysis: predictResult.data.image_url,
-                segments: segmentResult.data.grouped,
             });
             await WasteDetectionRepository.save(wasteDetection);
 
@@ -182,24 +161,14 @@ export class DetectTrashController {
             const buffer = Buffer.from(responseURL.data);
             const contentType = responseURL.headers["content-type"] || "application/octet-stream";
             const formData = createFormData(buffer, contentType);
-            const segmentFormData = createFormData(buffer, contentType);
 
-            const [massResult, segmentResult] = await Promise.all([
-                axios.post(TOTAL_MASS_URL, formData, {
-                    headers: {
-                        ...formData.getHeaders(),
-                    },
-                    maxContentLength: Infinity,
-                    maxBodyLength: Infinity
-                }),
-                axios.post(SEGMENT_URL, segmentFormData, {
-                    headers: {
-                        ...segmentFormData.getHeaders(),
-                    },
-                    maxContentLength: Infinity,
-                    maxBodyLength: Infinity
-                })
-            ]);
+            const massResult = await axios.post(TOTAL_MASS_URL, formData, {
+                headers: {
+                    ...formData.getHeaders(),
+                },
+                maxContentLength: Infinity,
+                maxBodyLength: Infinity
+            });
             const wasteDetection = WasteDetectionRepository.create({
                 imageUrl: imageUrl,
                 items: massResult.data.items,
@@ -210,7 +179,6 @@ export class DetectTrashController {
                 household: user?.household,
                 detectType: DETECT_TYPE.TOTAL_MASS,
                 householdId: user?.householdId,
-                segments: segmentResult.data.grouped,
             });
             await WasteDetectionRepository.save(wasteDetection);
             return res.status(200).json({ message: "Total mass estimation successful", data: wasteDetection });
@@ -242,8 +210,16 @@ export class DetectTrashController {
             });
             const buffer = Buffer.from(responseURL.data);
             const contentType = responseURL.headers["content-type"] || "application/octet-stream";
-
-            const [detectResult, predictResult, massResult, segmentResult] = await Promise.all([
+            const segmentResult = await axios.post(SEGMENT_URL, createFormData(buffer, contentType), {
+                headers: { ...createFormData(buffer, contentType).getHeaders() },
+                maxContentLength: Infinity,
+                maxBodyLength: Infinity
+            });
+            res.status(200).json({
+                message: "Image segmentation successful",
+                data: segmentResult.data
+            });
+            const [detectResult, predictResult, massResult] = await Promise.all([
                 axios.post(DETECT_TRASH_URL, createFormData(buffer, contentType), {
                     headers: { ...createFormData(buffer, contentType).getHeaders() },
                     maxContentLength: Infinity,
@@ -255,11 +231,6 @@ export class DetectTrashController {
                     maxBodyLength: Infinity
                 }),
                 axios.post(TOTAL_MASS_URL, createFormData(buffer, contentType), {
-                    headers: { ...createFormData(buffer, contentType).getHeaders() },
-                    maxContentLength: Infinity,
-                    maxBodyLength: Infinity
-                }),
-                axios.post(SEGMENT_URL, createFormData(buffer, contentType), {
                     headers: { ...createFormData(buffer, contentType).getHeaders() },
                     maxContentLength: Infinity,
                     maxBodyLength: Infinity
@@ -314,11 +285,6 @@ export class DetectTrashController {
                 segments: combinedResults.segments
             });
             await WasteDetectionRepository.save(wasteDetection);
-
-            return res.status(200).json({
-                message: "Image analysis completed successfully",
-                data: wasteDetection
-            });
         } catch (error: any) {
             console.error("AnalyzeImage Error:", error);
             res.status(500).json({ error: "Internal server error" });

@@ -49,25 +49,42 @@ class OCRController {
         }
 
         try {
-            // Create FormData for API request
-            const formData = new FormData();
-            formData.append('file', req.file.buffer, {
+            // Create 2 separate FormData instances for parallel calls
+            const ocrFormData = new FormData();
+            ocrFormData.append('file', req.file.buffer, {
                 filename: req.file.originalname,
                 contentType: req.file.mimetype
             });
 
-            // Call OCR API
-            const response = await axios.post<OCRResponse>(
-                'https://ai-greenmind.khoav4.com/ocr_text',
-                formData,
-                {
-                    headers: {
-                        ...formData.getHeaders()
-                    }
-                }
-            );
+            const pollutantFormData = new FormData();
+            pollutantFormData.append('file', req.file.buffer, {
+                filename: req.file.originalname,
+                contentType: req.file.mimetype
+            });
 
+            // Call both APIs in parallel
+            const [response, pollutantResult] = await Promise.all([
+                axios.post<OCRResponse>(
+                    'https://ai-greenmind.khoav4.com/ocr_text',
+                    ocrFormData,
+                    {
+                        headers: {
+                            ...ocrFormData.getHeaders()
+                        },
+                        maxContentLength: Infinity,
+                        maxBodyLength: Infinity
+                    }
+                ),
+                axios.post('https://ai-greenmind.khoav4.com/invoice-pollution', pollutantFormData, {
+                    headers: {
+                        ...pollutantFormData.getHeaders()
+                    },
+                    maxContentLength: Infinity,
+                    maxBodyLength: Infinity
+                })
+            ]);
             const ocrResult = response.data;
+            const pollutantData = pollutantResult.data;
 
             // Save invoice to database
             const invoiceRepository = AppDataSource.getRepository(Invoice);
@@ -91,12 +108,18 @@ class OCRController {
                 grand_total: ocrResult.totals.grand_total,
                 imageKey: imageKey || undefined,
                 imageUrl: imageUrl || undefined,
+                pollution: pollutantData.pollution,
+                impact: pollutantData.impact
             });
 
             await invoiceRepository.save(invoice);
 
-            // Return the same format as API response
-            res.status(200).json(ocrResult);
+            // Return the response with pollution and impact
+            res.status(200).json({
+                ...ocrResult,
+                pollution: pollutantData.pollution,
+                impact: pollutantData.impact
+            });
         } catch (error) {
 
             if (axios.isAxiosError(error)) {
