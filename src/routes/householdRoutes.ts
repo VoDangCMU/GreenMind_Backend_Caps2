@@ -10,6 +10,7 @@ const router = Router();
 router.use(jwtAuthMiddleware);
 router.post("/", HouseholdController.createHousehold);
 router.post("/admin", adminMiddleware, HouseholdController.createHouseholdByAdmin);
+router.post("/save-detection", DetectTrashController.SaveDetection);
 router.get("/", HouseholdController.getHousehold);
 router.put("/", HouseholdController.updateHousehold);
 router.get("/get-all-households", HouseholdController.getAllHouseholds);
