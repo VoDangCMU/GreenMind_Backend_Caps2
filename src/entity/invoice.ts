@@ -74,6 +74,12 @@ export class Invoice {
     @Column({ type: 'text', nullable: true })
     imageUrl?: string;
 
+    @Column({ type: 'jsonb', nullable: true })
+    pollution?: Record<string, any>;
+
+    @Column({ type: 'jsonb', nullable: true })
+    impact?: Record<string, any>;
+
     @CreateDateColumn({ type: 'timestamp' })
     createdAt!: Date;
 

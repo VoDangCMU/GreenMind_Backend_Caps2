@@ -28,34 +28,34 @@ const spec: OpenAPIV3.Document = {
             UserProfile: {
                 type: 'object',
                 properties: {
-                    id:          { type: 'string', format: 'uuid' },
-                    username:    { type: 'string' },
-                    email:       { type: 'string', format: 'email' },
-                    fullName:    { type: 'string' },
-                    gender:      { type: 'string' },
-                    role:        { type: 'string' },
+                    id: { type: 'string', format: 'uuid' },
+                    username: { type: 'string' },
+                    email: { type: 'string', format: 'email' },
+                    fullName: { type: 'string' },
+                    gender: { type: 'string' },
+                    role: { type: 'string' },
                     dateOfBirth: { type: 'string', format: 'date-time' },
-                    createdAt:   { type: 'string', format: 'date-time' },
+                    createdAt: { type: 'string', format: 'date-time' },
                 },
             },
             Location: {
                 type: 'object',
                 properties: {
-                    id:          { type: 'string', format: 'uuid' },
-                    latitude:    { type: 'number' },
-                    longitude:   { type: 'number' },
-                    address:     { type: 'string' },
-                    type:        { type: 'string', example: 'tracking' },
-                    createdAt:   { type: 'string', format: 'date-time' },
+                    id: { type: 'string', format: 'uuid' },
+                    latitude: { type: 'number' },
+                    longitude: { type: 'number' },
+                    address: { type: 'string' },
+                    type: { type: 'string', example: 'tracking' },
+                    createdAt: { type: 'string', format: 'date-time' },
                 },
             },
             Todo: {
                 type: 'object',
                 properties: {
-                    id:        { type: 'string', format: 'uuid' },
-                    title:     { type: 'string' },
+                    id: { type: 'string', format: 'uuid' },
+                    title: { type: 'string' },
                     completed: { type: 'boolean' },
-                    order:     { type: 'integer' },
+                    order: { type: 'integer' },
                     parent_id: { type: 'string', format: 'uuid', nullable: true },
                     createdAt: { type: 'string', format: 'date-time' },
                 },
@@ -63,41 +63,41 @@ const spec: OpenAPIV3.Document = {
             Invoice: {
                 type: 'object',
                 properties: {
-                    id:             { type: 'string', format: 'uuid' },
-                    doc:            { type: 'object', properties: { source_id: { type: 'string' }, currency: { type: 'string' }, payment_method: { type: 'string' }, notes: { type: 'string' } } },
-                    vendor:         { type: 'object', properties: { name: { type: 'string' }, address: { type: 'string' }, geo_hint: { type: 'string' } } },
-                    datetime:       { type: 'object', properties: { date: { type: 'string' }, time: { type: 'string' } } },
-                    items:          { type: 'array', items: { type: 'object' } },
-                    totals:         { type: 'object', properties: { subtotal: { type: 'number' }, discount: { type: 'number' }, tax: { type: 'number' }, grand_total: { type: 'number' } } },
-                    createdAt:      { type: 'string', format: 'date-time' },
+                    id: { type: 'string', format: 'uuid' },
+                    doc: { type: 'object', properties: { source_id: { type: 'string' }, currency: { type: 'string' }, payment_method: { type: 'string' }, notes: { type: 'string' } } },
+                    vendor: { type: 'object', properties: { name: { type: 'string' }, address: { type: 'string' }, geo_hint: { type: 'string' } } },
+                    datetime: { type: 'object', properties: { date: { type: 'string' }, time: { type: 'string' } } },
+                    items: { type: 'array', items: { type: 'object' } },
+                    totals: { type: 'object', properties: { subtotal: { type: 'number' }, discount: { type: 'number' }, tax: { type: 'number' }, grand_total: { type: 'number' } } },
+                    createdAt: { type: 'string', format: 'date-time' },
                 },
             },
             WasteReport: {
                 type: 'object',
                 properties: {
-                    id:                  { type: 'string', format: 'uuid' },
-                    householdId:         { type: 'string', format: 'uuid' },
-                    description:         { type: 'string' },
-                    imageKey:            { type: 'string' },
-                    imageUrl:            { type: 'string', format: 'uri' },
-                    lat:                 { type: 'number' },
-                    lng:                 { type: 'number' },
-                    status:              { type: 'string', enum: ['PENDING', 'ASSIGNED', 'RESOLVED', 'REJECTED'] },
+                    id: { type: 'string', format: 'uuid' },
+                    householdId: { type: 'string', format: 'uuid' },
+                    description: { type: 'string' },
+                    imageKey: { type: 'string' },
+                    imageUrl: { type: 'string', format: 'uri' },
+                    lat: { type: 'number' },
+                    lng: { type: 'number' },
+                    status: { type: 'string', enum: ['PENDING', 'ASSIGNED', 'RESOLVED', 'REJECTED'] },
                     assignedCollectorId: { type: 'string', format: 'uuid', nullable: true },
-                    createdAt:           { type: 'string', format: 'date-time' },
+                    createdAt: { type: 'string', format: 'date-time' },
                 },
             },
             WasteCollection: {
                 type: 'object',
                 properties: {
-                    id:          { type: 'string', format: 'uuid' },
+                    id: { type: 'string', format: 'uuid' },
                     collectorId: { type: 'string', format: 'uuid' },
                     householdId: { type: 'string', format: 'uuid', nullable: true },
-                    status:      { type: 'string', enum: ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'] },
+                    status: { type: 'string', enum: ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'] },
                     collectedAt: { type: 'string', format: 'date-time', nullable: true },
-                    lat:         { type: 'number' },
-                    lng:         { type: 'number' },
-                    createdAt:   { type: 'string', format: 'date-time' },
+                    lat: { type: 'number' },
+                    lng: { type: 'number' },
+                    createdAt: { type: 'string', format: 'date-time' },
                 },
             },
             Error: {
@@ -120,11 +120,11 @@ const spec: OpenAPIV3.Document = {
                                 type: 'object',
                                 required: ['username', 'email', 'password', 'dateOfBirth'],
                                 properties: {
-                                    username:    { type: 'string' },
-                                    email:       { type: 'string', format: 'email' },
-                                    password:    { type: 'string', format: 'password' },
-                                    fullName:    { type: 'string' },
-                                    gender:      { type: 'string' },
+                                    username: { type: 'string' },
+                                    email: { type: 'string', format: 'email' },
+                                    password: { type: 'string', format: 'password' },
+                                    fullName: { type: 'string' },
+                                    gender: { type: 'string' },
                                     dateOfBirth: { type: 'string', format: 'date-time' },
                                 },
                             },
@@ -149,7 +149,7 @@ const spec: OpenAPIV3.Document = {
                                 type: 'object',
                                 required: ['email', 'password'],
                                 properties: {
-                                    email:    { type: 'string', format: 'email' },
+                                    email: { type: 'string', format: 'email' },
                                     password: { type: 'string', format: 'password' },
                                 },
                             },
@@ -242,9 +242,9 @@ const spec: OpenAPIV3.Document = {
             get: { tags: ['Locations'], summary: 'Get distance traveled today', security: [bearer], responses: { '200': { description: 'Distance in km' }, '401': { description: 'Unauthorized' } } },
         },
         '/locations/{id}': {
-            get:    { tags: ['Locations'], summary: 'Get location by ID',  security: [bearer], parameters: [uuidParam('id')], responses: { '200': { description: 'Location' }, '401': { description: 'Unauthorized' }, '404': { description: 'Not found' } } },
-            put:    { tags: ['Locations'], summary: 'Update location',     security: [bearer], parameters: [uuidParam('id')], requestBody: { content: { 'application/json': { schema: { type: 'object' } } } }, responses: { '200': { description: 'Updated' }, '401': { description: 'Unauthorized' } } },
-            delete: { tags: ['Locations'], summary: 'Delete location',     security: [bearer], parameters: [uuidParam('id')], responses: { '200': { description: 'Deleted' }, '401': { description: 'Unauthorized' } } },
+            get: { tags: ['Locations'], summary: 'Get location by ID', security: [bearer], parameters: [uuidParam('id')], responses: { '200': { description: 'Location' }, '401': { description: 'Unauthorized' }, '404': { description: 'Not found' } } },
+            put: { tags: ['Locations'], summary: 'Update location', security: [bearer], parameters: [uuidParam('id')], requestBody: { content: { 'application/json': { schema: { type: 'object' } } } }, responses: { '200': { description: 'Updated' }, '401': { description: 'Unauthorized' } } },
+            delete: { tags: ['Locations'], summary: 'Delete location', security: [bearer], parameters: [uuidParam('id')], responses: { '200': { description: 'Deleted' }, '401': { description: 'Unauthorized' } } },
         },
 
         // ─────────────────────────── TODOS ───────────────────────────────────
@@ -262,9 +262,9 @@ const spec: OpenAPIV3.Document = {
             post: { tags: ['Todos'], summary: 'Create multiple todos', security: [bearer], requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { todos: { type: 'array', items: { type: 'object', properties: { title: { type: 'string' } } } } } } } } }, responses: { '201': { description: 'Created' }, '401': { description: 'Unauthorized' } } },
         },
         '/todos/{id}': {
-            get:    { tags: ['Todos'], summary: 'Get todo by ID', security: [bearer], parameters: [uuidParam('id')], responses: { '200': { description: 'Todo' }, '404': { description: 'Not found' } } },
-            put:    { tags: ['Todos'], summary: 'Update todo',    security: [bearer], parameters: [uuidParam('id')], requestBody: { content: { 'application/json': { schema: { type: 'object', properties: { title: { type: 'string' }, completed: { type: 'boolean' } } } } } }, responses: { '200': { description: 'Updated' } } },
-            delete: { tags: ['Todos'], summary: 'Delete todo',    security: [bearer], parameters: [uuidParam('id')], responses: { '200': { description: 'Deleted' } } },
+            get: { tags: ['Todos'], summary: 'Get todo by ID', security: [bearer], parameters: [uuidParam('id')], responses: { '200': { description: 'Todo' }, '404': { description: 'Not found' } } },
+            put: { tags: ['Todos'], summary: 'Update todo', security: [bearer], parameters: [uuidParam('id')], requestBody: { content: { 'application/json': { schema: { type: 'object', properties: { title: { type: 'string' }, completed: { type: 'boolean' } } } } } }, responses: { '200': { description: 'Updated' } } },
+            delete: { tags: ['Todos'], summary: 'Delete todo', security: [bearer], parameters: [uuidParam('id')], responses: { '200': { description: 'Deleted' } } },
         },
         '/todos/{id}/toggle': {
             patch: { tags: ['Todos'], summary: 'Toggle todo completed', security: [bearer], parameters: [uuidParam('id')], responses: { '200': { description: 'Toggled' } } },
@@ -273,10 +273,10 @@ const spec: OpenAPIV3.Document = {
         // ─────────────────────────── CHECKINS ────────────────────────────────
         '/checkins': {
             post: { tags: ['Checkins'], summary: 'Create checkin', security: [bearer], requestBody: { required: true, content: { 'application/json': { schema: { type: 'object' } } } }, responses: { '201': { description: 'Created' }, '401': { description: 'Unauthorized' } } },
-            get:  { tags: ['Checkins'], summary: 'Get checkins',   security: [bearer], responses: { '200': { description: 'List' }, '401': { description: 'Unauthorized' } } },
+            get: { tags: ['Checkins'], summary: 'Get checkins', security: [bearer], responses: { '200': { description: 'List' }, '401': { description: 'Unauthorized' } } },
         },
         '/checkins/{id}': {
-            put:    { tags: ['Checkins'], summary: 'Update checkin', security: [bearer], parameters: [uuidParam('id')], requestBody: { content: { 'application/json': { schema: { type: 'object' } } } }, responses: { '200': { description: 'Updated' } } },
+            put: { tags: ['Checkins'], summary: 'Update checkin', security: [bearer], parameters: [uuidParam('id')], requestBody: { content: { 'application/json': { schema: { type: 'object' } } } }, responses: { '200': { description: 'Updated' } } },
             delete: { tags: ['Checkins'], summary: 'Delete checkin', security: [bearer], parameters: [uuidParam('id')], responses: { '200': { description: 'Deleted' } } },
         },
         '/checkins/get-checkins-by-period': {
@@ -288,7 +288,7 @@ const spec: OpenAPIV3.Document = {
 
         // ─────────────────────────── DAILY SPENDING ──────────────────────────
         '/daily-spending': {
-            get:  { tags: ['Daily Spending'], summary: 'Get average daily spend', security: [bearer], responses: { '200': { description: 'Spend data' } } },
+            get: { tags: ['Daily Spending'], summary: 'Get average daily spend', security: [bearer], responses: { '200': { description: 'Spend data' } } },
             post: {
                 tags: ['Daily Spending'],
                 summary: 'Create or update spend',
@@ -338,14 +338,14 @@ const spec: OpenAPIV3.Document = {
         },
 
         // ─────────────────────────── METRICS ─────────────────────────────────
-        '/metrics/avg-daily-spend':     { get: { tags: ['Metrics'], summary: 'Avg daily spend metric',     security: [bearer], responses: { '200': { description: 'Metric' } } }, post: { tags: ['Metrics'], summary: 'Update avg daily spend',     security: [bearer], requestBody: { content: { 'application/json': { schema: { type: 'object' } } } }, responses: { '200': { description: 'Updated' } } } },
-        '/metrics/spend-variability':   { get: { tags: ['Metrics'], summary: 'Spend variability metric',   security: [bearer], responses: { '200': { description: 'Metric' } } }, post: { tags: ['Metrics'], summary: 'Update spend variability',   security: [bearer], requestBody: { content: { 'application/json': { schema: { type: 'object' } } } }, responses: { '200': { description: 'Updated' } } } },
-        '/metrics/brand-novelty':       { get: { tags: ['Metrics'], summary: 'Brand novelty metric',       security: [bearer], responses: { '200': { description: 'Metric' } } }, post: { tags: ['Metrics'], summary: 'Update brand novelty',       security: [bearer], requestBody: { content: { 'application/json': { schema: { type: 'object' } } } }, responses: { '200': { description: 'Updated' } } } },
-        '/metrics/list-adherence':      { get: { tags: ['Metrics'], summary: 'List adherence metric',      security: [bearer], responses: { '200': { description: 'Metric' } } }, post: { tags: ['Metrics'], summary: 'Update list adherence',      security: [bearer], requestBody: { content: { 'application/json': { schema: { type: 'object' } } } }, responses: { '200': { description: 'Updated' } } } },
-        '/metrics/daily-distance-km':   { get: { tags: ['Metrics'], summary: 'Daily distance km metric',   security: [bearer], responses: { '200': { description: 'Metric' } } }, post: { tags: ['Metrics'], summary: 'Update daily distance km',   security: [bearer], requestBody: { content: { 'application/json': { schema: { type: 'object' } } } }, responses: { '200': { description: 'Updated' } } } },
+        '/metrics/avg-daily-spend': { get: { tags: ['Metrics'], summary: 'Avg daily spend metric', security: [bearer], responses: { '200': { description: 'Metric' } } }, post: { tags: ['Metrics'], summary: 'Update avg daily spend', security: [bearer], requestBody: { content: { 'application/json': { schema: { type: 'object' } } } }, responses: { '200': { description: 'Updated' } } } },
+        '/metrics/spend-variability': { get: { tags: ['Metrics'], summary: 'Spend variability metric', security: [bearer], responses: { '200': { description: 'Metric' } } }, post: { tags: ['Metrics'], summary: 'Update spend variability', security: [bearer], requestBody: { content: { 'application/json': { schema: { type: 'object' } } } }, responses: { '200': { description: 'Updated' } } } },
+        '/metrics/brand-novelty': { get: { tags: ['Metrics'], summary: 'Brand novelty metric', security: [bearer], responses: { '200': { description: 'Metric' } } }, post: { tags: ['Metrics'], summary: 'Update brand novelty', security: [bearer], requestBody: { content: { 'application/json': { schema: { type: 'object' } } } }, responses: { '200': { description: 'Updated' } } } },
+        '/metrics/list-adherence': { get: { tags: ['Metrics'], summary: 'List adherence metric', security: [bearer], responses: { '200': { description: 'Metric' } } }, post: { tags: ['Metrics'], summary: 'Update list adherence', security: [bearer], requestBody: { content: { 'application/json': { schema: { type: 'object' } } } }, responses: { '200': { description: 'Updated' } } } },
+        '/metrics/daily-distance-km': { get: { tags: ['Metrics'], summary: 'Daily distance km metric', security: [bearer], responses: { '200': { description: 'Metric' } } }, post: { tags: ['Metrics'], summary: 'Update daily distance km', security: [bearer], requestBody: { content: { 'application/json': { schema: { type: 'object' } } } }, responses: { '200': { description: 'Updated' } } } },
         '/metrics/novel-location-ratio': { get: { tags: ['Metrics'], summary: 'Novel location ratio metric', security: [bearer], responses: { '200': { description: 'Metric' } } }, post: { tags: ['Metrics'], summary: 'Update novel location ratio', security: [bearer], requestBody: { content: { 'application/json': { schema: { type: 'object' } } } }, responses: { '200': { description: 'Updated' } } } },
         '/metrics/public-transit-ratio': { get: { tags: ['Metrics'], summary: 'Public transit ratio metric', security: [bearer], responses: { '200': { description: 'Metric' } } }, post: { tags: ['Metrics'], summary: 'Update public transit ratio', security: [bearer], requestBody: { content: { 'application/json': { schema: { type: 'object' } } } }, responses: { '200': { description: 'Updated' } } } },
-        '/metrics/night-out-freq':      { get: { tags: ['Metrics'], summary: 'Night out frequency metric',  security: [bearer], responses: { '200': { description: 'Metric' } } }, post: { tags: ['Metrics'], summary: 'Count night out',             security: [bearer], requestBody: { content: { 'application/json': { schema: { type: 'object' } } } }, responses: { '200': { description: 'Updated' } } } },
+        '/metrics/night-out-freq': { get: { tags: ['Metrics'], summary: 'Night out frequency metric', security: [bearer], responses: { '200': { description: 'Metric' } } }, post: { tags: ['Metrics'], summary: 'Count night out', security: [bearer], requestBody: { content: { 'application/json': { schema: { type: 'object' } } } }, responses: { '200': { description: 'Updated' } } } },
 
         // ─────────────────────────── MEDIA ───────────────────────────────────
         '/media/upload': {
@@ -376,11 +376,11 @@ const spec: OpenAPIV3.Document = {
                                 type: 'object',
                                 required: ['householdId'],
                                 properties: {
-                                    householdId:  { type: 'string', format: 'uuid' },
-                                    description:  { type: 'string' },
-                                    imageKey:     { type: 'string', description: 'Key returned from POST /media/upload' },
-                                    lat:          { type: 'number' },
-                                    lng:          { type: 'number' },
+                                    householdId: { type: 'string', format: 'uuid' },
+                                    description: { type: 'string' },
+                                    imageKey: { type: 'string', description: 'Key returned from POST /media/upload' },
+                                    lat: { type: 'number' },
+                                    lng: { type: 'number' },
                                 },
                             },
                         },
@@ -417,7 +417,7 @@ const spec: OpenAPIV3.Document = {
                                 schema: {
                                     type: 'object',
                                     properties: {
-                                        urbanAreaId:  { type: 'string' },
+                                        urbanAreaId: { type: 'string' },
                                         totalReports: { type: 'integer' },
                                         byStatus: { type: 'object', properties: { PENDING: { type: 'integer' }, ASSIGNED: { type: 'integer' }, RESOLVED: { type: 'integer' }, REJECTED: { type: 'integer' } } },
                                         reports: { type: 'array', items: { $ref: '#/components/schemas/WasteReport' } },
@@ -444,7 +444,7 @@ const spec: OpenAPIV3.Document = {
                                 type: 'object',
                                 required: ['status'],
                                 properties: {
-                                    status:              { type: 'string', enum: ['PENDING', 'ASSIGNED', 'RESOLVED', 'REJECTED'] },
+                                    status: { type: 'string', enum: ['PENDING', 'ASSIGNED', 'RESOLVED', 'REJECTED'] },
                                     assignedCollectorId: { type: 'string', format: 'uuid', description: 'Required when status = ASSIGNED' },
                                 },
                             },
@@ -498,7 +498,7 @@ const spec: OpenAPIV3.Document = {
         // ─────────────────────────── QUESTIONS ───────────────────────────────
         '/questions': {
             post: { tags: ['Questions'], summary: 'Create a question (staff/admin)', security: [bearer], requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { question: { type: 'string' }, templateId: { type: 'string' } } } } } }, responses: { '201': { description: 'Created' }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden' } } },
-            get:  { tags: ['Questions'], summary: 'Get all questions',             security: [bearer], responses: { '200': { description: 'List of questions' }, '401': { description: 'Unauthorized' } } },
+            get: { tags: ['Questions'], summary: 'Get all questions', security: [bearer], responses: { '200': { description: 'List of questions' }, '401': { description: 'Unauthorized' } } },
         },
         '/questions/createQuestions': {
             post: { tags: ['Questions'], summary: 'Bulk create questions (staff/admin)', security: [bearer], requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { questions: { type: 'array', items: { type: 'object' } } } } } } }, responses: { '201': { description: 'Created' }, '403': { description: 'Forbidden' } } },
@@ -519,15 +519,15 @@ const spec: OpenAPIV3.Document = {
             get: { tags: ['Questions'], summary: 'Get questions by owner ID', security: [bearer], parameters: [uuidParam('ownerId')], responses: { '200': { description: 'Questions' }, '401': { description: 'Unauthorized' } } },
         },
         '/questions/{id}': {
-            get:    { tags: ['Questions'], summary: 'Get question by ID',          security: [bearer], parameters: [uuidParam('id')], responses: { '200': { description: 'Question' }, '404': { description: 'Not found' } } },
-            put:    { tags: ['Questions'], summary: 'Update question (staff/admin)', security: [bearer], parameters: [uuidParam('id')], requestBody: { content: { 'application/json': { schema: { type: 'object' } } } }, responses: { '200': { description: 'Updated' }, '403': { description: 'Forbidden' } } },
-            delete: { tags: ['Questions'], summary: 'Delete question (admin)',      security: [bearer], parameters: [uuidParam('id')], responses: { '200': { description: 'Deleted' }, '403': { description: 'Forbidden' } } },
+            get: { tags: ['Questions'], summary: 'Get question by ID', security: [bearer], parameters: [uuidParam('id')], responses: { '200': { description: 'Question' }, '404': { description: 'Not found' } } },
+            put: { tags: ['Questions'], summary: 'Update question (staff/admin)', security: [bearer], parameters: [uuidParam('id')], requestBody: { content: { 'application/json': { schema: { type: 'object' } } } }, responses: { '200': { description: 'Updated' }, '403': { description: 'Forbidden' } } },
+            delete: { tags: ['Questions'], summary: 'Delete question (admin)', security: [bearer], parameters: [uuidParam('id')], responses: { '200': { description: 'Deleted' }, '403': { description: 'Forbidden' } } },
         },
 
         // ─────────────────────────── QUESTION SETS ───────────────────────────
         '/question-sets': {
             post: { tags: ['Question Sets'], summary: 'Create question set (staff/admin)', security: [bearer], requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { name: { type: 'string' }, description: { type: 'string' } } } } } }, responses: { '201': { description: 'Created' }, '403': { description: 'Forbidden' } } },
-            get:  { tags: ['Question Sets'], summary: 'Get all question sets (staff/admin)', security: [bearer], responses: { '200': { description: 'List' }, '403': { description: 'Forbidden' } } },
+            get: { tags: ['Question Sets'], summary: 'Get all question sets (staff/admin)', security: [bearer], responses: { '200': { description: 'List' }, '403': { description: 'Forbidden' } } },
         },
         '/question-sets/my-sets': {
             get: { tags: ['Question Sets'], summary: 'Get my question sets', security: [bearer], responses: { '200': { description: 'My sets' } } },
@@ -536,9 +536,9 @@ const spec: OpenAPIV3.Document = {
             get: { tags: ['Question Sets'], summary: 'Get question sets by owner', security: [bearer], parameters: [uuidParam('ownerId')], responses: { '200': { description: 'Sets' } } },
         },
         '/question-sets/{id}': {
-            get:    { tags: ['Question Sets'], summary: 'Get question set by ID', security: [bearer], parameters: [uuidParam('id')], responses: { '200': { description: 'Set' }, '404': { description: 'Not found' } } },
-            put:    { tags: ['Question Sets'], summary: 'Update question set',    security: [bearer], parameters: [uuidParam('id')], requestBody: { content: { 'application/json': { schema: { type: 'object' } } } }, responses: { '200': { description: 'Updated' } } },
-            delete: { tags: ['Question Sets'], summary: 'Delete question set',    security: [bearer], parameters: [uuidParam('id')], responses: { '200': { description: 'Deleted' } } },
+            get: { tags: ['Question Sets'], summary: 'Get question set by ID', security: [bearer], parameters: [uuidParam('id')], responses: { '200': { description: 'Set' }, '404': { description: 'Not found' } } },
+            put: { tags: ['Question Sets'], summary: 'Update question set', security: [bearer], parameters: [uuidParam('id')], requestBody: { content: { 'application/json': { schema: { type: 'object' } } } }, responses: { '200': { description: 'Updated' } } },
+            delete: { tags: ['Question Sets'], summary: 'Delete question set', security: [bearer], parameters: [uuidParam('id')], responses: { '200': { description: 'Deleted' } } },
         },
 
         // ─────────────────────────── TEMPLATES ───────────────────────────────
@@ -564,23 +564,23 @@ const spec: OpenAPIV3.Document = {
         // ─────────────────────────── BIG FIVE ────────────────────────────────
         '/big-five': {
             post: { tags: ['Big Five'], summary: 'Submit Big Five personality assessment', security: [bearer], requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { openness: { type: 'number' }, conscientiousness: { type: 'number' }, extraversion: { type: 'number' }, agreeableness: { type: 'number' }, neuroticism: { type: 'number' } } } } } }, responses: { '201': { description: 'Submitted' }, '401': { description: 'Unauthorized' } } },
-            get:  { tags: ['Big Five'], summary: 'Get all Big Five records (admin)',    security: [bearer], responses: { '200': { description: 'All records' }, '403': { description: 'Forbidden' } } },
+            get: { tags: ['Big Five'], summary: 'Get all Big Five records (admin)', security: [bearer], responses: { '200': { description: 'All records' }, '403': { description: 'Forbidden' } } },
         },
         '/big-five/user/{userId}': {
-            get:    { tags: ['Big Five'], summary: 'Get Big Five by user ID',    security: [bearer], parameters: [uuidParam('userId')], responses: { '200': { description: 'Big Five data' }, '404': { description: 'Not found' } } },
-            put:    { tags: ['Big Five'], summary: 'Update Big Five for user',   security: [bearer], parameters: [uuidParam('userId')], requestBody: { content: { 'application/json': { schema: { type: 'object' } } } }, responses: { '200': { description: 'Updated' } } },
-            delete: { tags: ['Big Five'], summary: 'Delete Big Five for user',   security: [bearer], parameters: [uuidParam('userId')], responses: { '200': { description: 'Deleted' } } },
+            get: { tags: ['Big Five'], summary: 'Get Big Five by user ID', security: [bearer], parameters: [uuidParam('userId')], responses: { '200': { description: 'Big Five data' }, '404': { description: 'Not found' } } },
+            put: { tags: ['Big Five'], summary: 'Update Big Five for user', security: [bearer], parameters: [uuidParam('userId')], requestBody: { content: { 'application/json': { schema: { type: 'object' } } } }, responses: { '200': { description: 'Updated' } } },
+            delete: { tags: ['Big Five'], summary: 'Delete Big Five for user', security: [bearer], parameters: [uuidParam('userId')], responses: { '200': { description: 'Deleted' } } },
         },
 
         // ─────────────────────────── BEHAVIORS ───────────────────────────────
         '/behaviors': {
             post: { tags: ['Behaviors'], summary: 'Create behavior (staff/admin)', security: [bearer], requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { name: { type: 'string' }, type: { type: 'string' }, keywords: { type: 'array', items: { type: 'string' } } } } } } }, responses: { '201': { description: 'Created' }, '403': { description: 'Forbidden' } } },
-            get:  { tags: ['Behaviors'], summary: 'Get all behaviors',             security: [bearer], responses: { '200': { description: 'List' } } },
+            get: { tags: ['Behaviors'], summary: 'Get all behaviors', security: [bearer], responses: { '200': { description: 'List' } } },
         },
         '/behaviors/{id}': {
-            get:    { tags: ['Behaviors'], summary: 'Get behavior by ID',           security: [bearer], parameters: [uuidParam('id')], responses: { '200': { description: 'Behavior' }, '404': { description: 'Not found' } } },
-            put:    { tags: ['Behaviors'], summary: 'Update behavior (staff/admin)', security: [bearer], parameters: [uuidParam('id')], requestBody: { content: { 'application/json': { schema: { type: 'object' } } } }, responses: { '200': { description: 'Updated' }, '403': { description: 'Forbidden' } } },
-            delete: { tags: ['Behaviors'], summary: 'Delete behavior (admin)',       security: [bearer], parameters: [uuidParam('id')], responses: { '200': { description: 'Deleted' }, '403': { description: 'Forbidden' } } },
+            get: { tags: ['Behaviors'], summary: 'Get behavior by ID', security: [bearer], parameters: [uuidParam('id')], responses: { '200': { description: 'Behavior' }, '404': { description: 'Not found' } } },
+            put: { tags: ['Behaviors'], summary: 'Update behavior (staff/admin)', security: [bearer], parameters: [uuidParam('id')], requestBody: { content: { 'application/json': { schema: { type: 'object' } } } }, responses: { '200': { description: 'Updated' }, '403': { description: 'Forbidden' } } },
+            delete: { tags: ['Behaviors'], summary: 'Delete behavior (admin)', security: [bearer], parameters: [uuidParam('id')], responses: { '200': { description: 'Deleted' }, '403': { description: 'Forbidden' } } },
         },
 
         // ─────────────────────────── BEHAVIOR FEEDBACKS ──────────────────────
@@ -600,7 +600,7 @@ const spec: OpenAPIV3.Document = {
         // ─────────────────────────── USER ANSWERS ────────────────────────────
         '/user-answers': {
             post: { tags: ['User Answers'], summary: 'Create a user answer', security: [bearer], requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { questionId: { type: 'string', format: 'uuid' }, answer: { type: 'string' } } } } } }, responses: { '201': { description: 'Created' } } },
-            get:  { tags: ['User Answers'], summary: 'Get all user answers (admin)', security: [bearer], responses: { '200': { description: 'All answers' }, '403': { description: 'Forbidden' } } },
+            get: { tags: ['User Answers'], summary: 'Get all user answers (admin)', security: [bearer], responses: { '200': { description: 'All answers' }, '403': { description: 'Forbidden' } } },
         },
         '/user-answers/submit': {
             post: { tags: ['User Answers'], summary: 'Submit multiple user answers at once', security: [bearer], requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { answers: { type: 'array', items: { type: 'object', properties: { questionId: { type: 'string', format: 'uuid' }, answer: { type: 'string' } } } } } } } } }, responses: { '200': { description: 'Submitted' } } },
@@ -615,8 +615,8 @@ const spec: OpenAPIV3.Document = {
             get: { tags: ['User Answers'], summary: 'Get all answers for a question (staff/admin)', security: [bearer], parameters: [uuidParam('questionId')], responses: { '200': { description: 'Answers' }, '403': { description: 'Forbidden' } } },
         },
         '/user-answers/{userId}/{questionId}': {
-            put:    { tags: ['User Answers'], summary: 'Update user answer',  security: [bearer], parameters: [uuidParam('userId'), uuidParam('questionId')], requestBody: { content: { 'application/json': { schema: { type: 'object', properties: { answer: { type: 'string' } } } } } }, responses: { '200': { description: 'Updated' } } },
-            delete: { tags: ['User Answers'], summary: 'Delete user answer',  security: [bearer], parameters: [uuidParam('userId'), uuidParam('questionId')], responses: { '200': { description: 'Deleted' } } },
+            put: { tags: ['User Answers'], summary: 'Update user answer', security: [bearer], parameters: [uuidParam('userId'), uuidParam('questionId')], requestBody: { content: { 'application/json': { schema: { type: 'object', properties: { answer: { type: 'string' } } } } } }, responses: { '200': { description: 'Updated' } } },
+            delete: { tags: ['User Answers'], summary: 'Delete user answer', security: [bearer], parameters: [uuidParam('userId'), uuidParam('questionId')], responses: { '200': { description: 'Deleted' } } },
         },
 
         // ─────────────────────────── SURVEY SCENARIOS ────────────────────────
@@ -684,19 +684,19 @@ const spec: OpenAPIV3.Document = {
                             schema: {
                                 type: 'object',
                                 properties: {
-                                    daily_spending:    { type: 'number', description: 'Average daily spending (VND)' },
-                                    spending_variation:{ type: 'integer', description: '1–5 scale' },
-                                    brand_trial:       { type: 'integer', description: '1–5 scale' },
-                                    shopping_list:     { type: 'integer', description: '1–5 scale' },
-                                    daily_distance:    { type: 'number', description: 'km' },
-                                    new_places:        { type: 'integer', description: '1–5 scale' },
-                                    public_transport:  { type: 'integer', description: '1–5 scale' },
-                                    stable_schedule:   { type: 'integer', description: '1–5 scale' },
-                                    night_outings:     { type: 'integer', description: '1–5 scale' },
-                                    healthy_eating:    { type: 'integer', description: '1–5 scale' },
-                                    social_media:      { type: 'integer', description: '1–5 scale' },
-                                    goal_setting:      { type: 'integer', description: '1–5 scale' },
-                                    mood_swings:       { type: 'integer', description: '1–5 scale' },
+                                    daily_spending: { type: 'number', description: 'Average daily spending (VND)' },
+                                    spending_variation: { type: 'integer', description: '1–5 scale' },
+                                    brand_trial: { type: 'integer', description: '1–5 scale' },
+                                    shopping_list: { type: 'integer', description: '1–5 scale' },
+                                    daily_distance: { type: 'number', description: 'km' },
+                                    new_places: { type: 'integer', description: '1–5 scale' },
+                                    public_transport: { type: 'integer', description: '1–5 scale' },
+                                    stable_schedule: { type: 'integer', description: '1–5 scale' },
+                                    night_outings: { type: 'integer', description: '1–5 scale' },
+                                    healthy_eating: { type: 'integer', description: '1–5 scale' },
+                                    social_media: { type: 'integer', description: '1–5 scale' },
+                                    goal_setting: { type: 'integer', description: '1–5 scale' },
+                                    mood_swings: { type: 'integer', description: '1–5 scale' },
                                 },
                             },
                         },
@@ -709,8 +709,8 @@ const spec: OpenAPIV3.Document = {
             put: { tags: ['Pre-App Survey'], summary: 'Update survey parameters (sigmoid, weight, direction, alpha)', security: [bearer], requestBody: { required: true, content: { 'application/json': { schema: { type: 'object' } } } }, responses: { '200': { description: 'Updated' } } },
         },
         '/pre-app-survey/{userId}': {
-            get:    { tags: ['Pre-App Survey'], summary: 'Get pre-app survey by user ID', security: [bearer], parameters: [uuidParam('userId')], responses: { '200': { description: 'Survey data' }, '404': { description: 'Not found' } } },
-            delete: { tags: ['Pre-App Survey'], summary: 'Delete pre-app survey',         security: [bearer], parameters: [uuidParam('userId')], responses: { '200': { description: 'Deleted' } } },
+            get: { tags: ['Pre-App Survey'], summary: 'Get pre-app survey by user ID', security: [bearer], parameters: [uuidParam('userId')], responses: { '200': { description: 'Survey data' }, '404': { description: 'Not found' } } },
+            delete: { tags: ['Pre-App Survey'], summary: 'Delete pre-app survey', security: [bearer], parameters: [uuidParam('userId')], responses: { '200': { description: 'Deleted' } } },
         },
     },
 };
