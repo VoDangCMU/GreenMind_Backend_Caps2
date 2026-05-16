@@ -215,76 +215,54 @@ export class DetectTrashController {
                 maxContentLength: Infinity,
                 maxBodyLength: Infinity
             });
-            res.status(200).json({
-                message: "Image segmentation successful",
-                data: segmentResult.data
-            });
-            const [detectResult, predictResult, massResult] = await Promise.all([
-                axios.post(DETECT_TRASH_URL, createFormData(buffer, contentType), {
-                    headers: { ...createFormData(buffer, contentType).getHeaders() },
-                    maxContentLength: Infinity,
-                    maxBodyLength: Infinity
-                }),
-                axios.post(PREDICT_POLLUTANT_URL, createFormData(buffer, contentType), {
-                    headers: { ...createFormData(buffer, contentType).getHeaders() },
-                    maxContentLength: Infinity,
-                    maxBodyLength: Infinity
-                }),
-                axios.post(TOTAL_MASS_URL, createFormData(buffer, contentType), {
-                    headers: { ...createFormData(buffer, contentType).getHeaders() },
-                    maxContentLength: Infinity,
-                    maxBodyLength: Infinity
-                })
-            ]);
-
-            const combinedResults = {
-                detect: {
-                    items: detectResult.data.items,
-                    totalObjects: detectResult.data.total_objects,
-                    imageUrl: detectResult.data.image_url
-                },
-                pollutant: {
-                    items: predictResult.data.items,
-                    pollution: predictResult.data.pollution,
-                    impact: predictResult.data.impact,
-                    totalObjects: predictResult.data.total_objects,
-                    imageUrl: predictResult.data.image_url
-                },
-                totalMass: {
-                    items: massResult.data.items,
-                    totalMassKg: massResult.data.total_mass_kg,
-                    annotatedImageUrl: massResult.data.annotated_image_url,
-                    depthMapUrl: massResult.data.depth_map_url
-                },
-                segments: segmentResult.data.grouped
-            };
-
-            const massMap = new Map(
-                massResult.data.items.map((item: any) => [item.name.toLowerCase(), item.mass_kg])
-            );
-            const mergedItems = detectResult.data.items.map((item: any) => ({
-                ...item,
-                mass_kg: massMap.get(item.name.toLowerCase()) || null
-            }));
 
             const wasteDetection = WasteDetectionRepository.create({
                 imageUrl: imageUrl,
-                items: mergedItems,
-                pollution: combinedResults.pollutant.pollution,
-                impact: combinedResults.pollutant.impact,
-                totalObjects: combinedResults.detect.totalObjects,
-                totalMassKg: combinedResults.totalMass.totalMassKg,
-                annotatedImageUrl: combinedResults.totalMass.annotatedImageUrl,
-                depthMapUrl: combinedResults.totalMass.depthMapUrl,
-                aiAnalysis: combinedResults.pollutant.imageUrl,
+                segments: segmentResult.data.grouped,
                 detectedBy: user,
                 household: user?.household,
                 detectType: DETECT_TYPE.ANALYZE_ALL,
                 householdId: user?.householdId,
                 status: STATUS.DETECTED,
-                segments: combinedResults.segments
             });
             await WasteDetectionRepository.save(wasteDetection);
+            res.status(200).json({ message: "Image analysis successful", data: wasteDetection });
+            const detectResult = await axios.post(DETECT_TRASH_URL, createFormData(buffer, contentType), {
+                headers: { ...createFormData(buffer, contentType).getHeaders() },
+                maxContentLength: Infinity,
+                maxBodyLength: Infinity
+            });
+            wasteDetection.items = detectResult.data.items;
+            wasteDetection.totalObjects = detectResult.data.total_objects;
+            wasteDetection.aiAnalysis = detectResult.data.image_url;
+            await WasteDetectionRepository.save(wasteDetection);
+
+            const predictResult = await axios.post(PREDICT_POLLUTANT_URL, createFormData(buffer, contentType), {
+                headers: { ...createFormData(buffer, contentType).getHeaders() },
+                maxContentLength: Infinity,
+                maxBodyLength: Infinity
+            });
+            wasteDetection.pollution = predictResult.data.pollution;
+            wasteDetection.impact = predictResult.data.impact;
+            await WasteDetectionRepository.save(wasteDetection);
+
+            const massResult = await axios.post(TOTAL_MASS_URL, createFormData(buffer, contentType), {
+                headers: { ...createFormData(buffer, contentType).getHeaders() },
+                maxContentLength: Infinity,
+                maxBodyLength: Infinity
+            });
+            const massMap = new Map(
+                massResult.data.items.map((item: any) => [item.name.toLowerCase(), item.mass_kg])
+            );
+            const mergedItems = wasteDetection.items.map((item: any) => ({
+                ...item,
+                mass_kg: massMap.get(item.name.toLowerCase()) || null
+            }));
+            wasteDetection.items = mergedItems;
+            wasteDetection.totalMassKg = massResult.data.total_mass_kg;
+            wasteDetection.annotatedImageUrl = massResult.data.annotated_image_url;
+            wasteDetection.depthMapUrl = massResult.data.depth_map_url;
+            return await WasteDetectionRepository.save(wasteDetection);
         } catch (error: any) {
             console.error("AnalyzeImage Error:", error);
             res.status(500).json({ error: "Internal server error" });
@@ -661,6 +639,71 @@ export class DetectTrashController {
                 data: detections
             });
         } catch (error) {
+            res.status(500).json({ error: "Internal server error" });
+        }
+    }
+
+    public SaveDetection: RequestHandler = async (req: any, res: any) => {
+        try {
+            const { userId, householdId } = req.body;
+            if (!userId || !householdId) {
+                return res.status(400).json({ error: "userId and householdId are required" });
+            }
+
+            const user = await UserRepository.findOne({
+                where: { id: userId },
+                relations: { household: true }
+            });
+
+            const household = await householdRepository.findOne({
+                where: { id: householdId }
+            });
+
+            if (!user || !household) {
+                return res.status(404).json({ error: "User or household not found" });
+            }
+            const mockData = {
+                imageUrl: "https://greenmind-bucket.khoav4.com/uploads/22859d5c-5942-4d2e-9fe3-0cbf4bca44ae/662328838_1204943478172377_3467340833683000428_n.jpg",
+                items: [
+                    { area: 9759, name: "Drink can", mass_kg: 0.0471, quantity: 3 },
+                    { area: 16029, name: "Clear plastic bottle", mass_kg: 0.0208, quantity: 3 },
+                    { area: 5749, name: "Foam food container", mass_kg: 0.014, quantity: 1 },
+                    { area: 3692, name: "Other plastic wrapper", mass_kg: 0.0091, quantity: 1 },
+                    { area: 55659, name: "Plastic film", mass_kg: 5.1417, quantity: 1 },
+                    { area: 17937, name: "Crisp packet", mass_kg: null, quantity: 1 },
+                    { area: 1807, name: "Styrofoam piece", mass_kg: null, quantity: 1 }
+                ],
+                pollution: {
+                    Cd: 0, Hg: 0, Pb: 0, CH4: 0, CO2: 0.678, NOx: 0.192, "SO2": 0.192,
+                    "PM2.5": 0, dioxin: 0.637, nitrate: 0, styrene: 0.209,
+                    microplastic: 0.675, toxic_chemicals: 0.268, chemical_residue: 0, non_biodegradable: 0.675
+                },
+                segments: {
+                    residual: ["https://res.cloudinary.com/dc8q7sv1f/image/upload/v1778938934/yolo_segments/segments/5151e707e75942c784c5caf5d4fd6081.png"],
+                    recyclable: ["https://res.cloudinary.com/dc8q7sv1f/image/upload/v1778938930/yolo_segments/segments/c1d3f7235da44203994aaeb0e4b43bec.png"]
+                },
+                impact: { air_pollution: 0.283, soil_pollution: 0.305, water_pollution: 0.113 },
+                totalObjects: 11,
+                totalMassKg: 5.2327,
+                annotatedImageUrl: "https://res.cloudinary.com/dc8q7sv1f/image/upload/v1778938947/yolo_mass_detect/mass_detect/55bf2f298ef74df9af20a39aff59dfcc.jpg",
+                depthMapUrl: "https://res.cloudinary.com/dc8q7sv1f/image/upload/v1778938950/yolo_depth_maps/depth_map/b0f8dd423f734755884f3d851ab9e725.png",
+                aiAnalysis: "https://res.cloudinary.com/dc8q7sv1f/image/upload/v1778938942/yolo_detect/detect/b44d052a15d74e55a965d43397ff83b5.jpg",
+                detectType: DETECT_TYPE.ANALYZE_ALL,
+                status: STATUS.BROUGHT_OUT,
+            };
+
+            const wasteDetection = WasteDetectionRepository.create({
+                ...mockData,
+                detectedBy: user,
+                household: household,
+                householdId: householdId,
+            });
+
+            await WasteDetectionRepository.save(wasteDetection);
+
+            return res.status(200).json({ message: "Detection saved successfully", data: wasteDetection });
+        } catch (error: any) {
+            console.error("SaveDetection Error:", error);
             res.status(500).json({ error: "Internal server error" });
         }
     }
