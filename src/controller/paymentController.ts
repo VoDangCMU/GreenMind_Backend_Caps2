@@ -205,7 +205,37 @@ class PaymentController {
                 // ── Payment Intent ─────────────────────────────────────
                 case "payment_intent.succeeded":
                     log("info", event.type, `id=${obj.id} amount=${obj.amount_received / 100} ${String(obj.currency).toUpperCase()} user=${obj.metadata?.userId ?? "?"}`);
-                    // TODO: mark order paid, send receipt, update greenScore
+                    // Fallback: also mark waste-bill records as paid via payment_intent metadata
+                    {
+                        const meta = obj.metadata as Record<string, string> | undefined;
+                        if (meta?.householdId && meta?.month && meta?.year) {
+                            try {
+                                const repo = AppDataSource.getRepository(WasteDetection);
+                                const monthNum = parseInt(meta.month, 10);
+                                const yearNum = parseInt(meta.year, 10);
+                                const records = await repo
+                                    .createQueryBuilder("wd")
+                                    .where("wd.householdId = :hid", { hid: meta.householdId })
+                                    .andWhere("wd.status = :status", { status: STATUS.PICKED_UP })
+                                    .andWhere("wd.isPaid = false")
+                                    .andWhere("EXTRACT(YEAR  FROM wd.pickedUpAt) = :year", { year: yearNum })
+                                    .andWhere("EXTRACT(MONTH FROM wd.pickedUpAt) = :month", { month: monthNum })
+                                    .getMany();
+                                if (records.length > 0) {
+                                    const paidAt = new Date();
+                                    for (const r of records) {
+                                        r.isPaid = true;
+                                        r.paidAt = paidAt;
+                                    }
+                                    await repo.save(records);
+                                    log("info", event.type,
+                                        `marked ${records.length} waste records as paid (payment_intent fallback) — household=${meta.householdId} ${monthNum}/${yearNum}`);
+                                }
+                            } catch (e) {
+                                log("error", event.type, `payment_intent fallback failed to mark waste bill paid: ${(e as Error).message}`);
+                            }
+                        }
+                    }
                     break;
 
                 case "payment_intent.payment_failed":
@@ -241,6 +271,7 @@ class PaymentController {
                     log("info", event.type, `id=${obj.id} customer=${obj.customer} total=${(obj.amount_total ?? 0) / 100}`);
                     // Mark all records in the monthly waste bill group as paid
                     const meta = obj.metadata as Record<string, string> | undefined;
+                    log("info", event.type, `metadata=${JSON.stringify(meta)}`);
                     if (meta?.householdId && meta?.month && meta?.year) {
                         try {
                             const { In: TypeORMIn } = await import("typeorm");
@@ -258,6 +289,8 @@ class PaymentController {
                                 .andWhere("EXTRACT(MONTH FROM wd.pickedUpAt) = :month", { month: monthNum })
                                 .getMany();
 
+                            log("info", event.type, `found ${records.length} unpaid records to mark paid — household=${meta.householdId} ${monthNum}/${yearNum}`);
+
                             if (records.length > 0) {
                                 const paidAt = new Date();
                                 for (const r of records) {
@@ -271,6 +304,8 @@ class PaymentController {
                         } catch (e) {
                             log("error", event.type, `failed to mark waste bill group paid: ${(e as Error).message}`);
                         }
+                    } else {
+                        log("warn", event.type, `metadata missing householdId/month/year — cannot mark paid`);
                     }
                     break;
                 }
@@ -501,7 +536,8 @@ class PaymentController {
                 .andWhere("wd.status = :status", { status: STATUS.PICKED_UP })
                 .andWhere("wd.totalMassKg IS NOT NULL")
                 .andWhere("wd.pickedUpAt IS NOT NULL")
-                .andWhere("wd.userId = :userId", { userId: req.user!.userId })
+                // Filter: only return bills for the user's own household
+                .andWhere("wd.householdId = (SELECT householdId FROM users WHERE id = :userId LIMIT 1)", { userId: req.user!.userId })
                 .groupBy("wd.householdId")
                 .addGroupBy("EXTRACT(YEAR  FROM wd.pickedUpAt)")
                 .addGroupBy("EXTRACT(MONTH FROM wd.pickedUpAt)")
@@ -650,9 +686,12 @@ class PaymentController {
                 },
             });
 
-            // Pre-save billAmount on each record for audit trail (batch to reduce DB round-trips)
+            // Pre-save billAmount and mark as paid immediately (webhook may fail, ensure isPaid=true)
+            const paidAt = new Date();
             for (const r of records) {
                 r.billAmount = r.billAmount ?? (r.totalMassKg! * RATE_VND_PER_KG);
+                r.isPaid = true;
+                r.paidAt = paidAt;
             }
             await repo.save(records);
 
