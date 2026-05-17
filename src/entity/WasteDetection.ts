@@ -92,7 +92,7 @@ export class WasteDetection {
     @Column({ type: 'timestamp', nullable: true })
     pickedUpAt?: Date;
 
-    @Column({ type: 'boolean', default: false })
+    @Column({ type: 'boolean', default: true })
     isPaid!: boolean;
 
     @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
