@@ -242,7 +242,6 @@ export class DetectTrashController {
             });
             wasteDetection.items = detectResult.data.items;
             wasteDetection.totalObjects = detectResult.data.total_objects;
-            wasteDetection.aiAnalysis = detectResult.data.image_url;
             await WasteDetectionRepository.save(wasteDetection);
 
             const predictResult = await axios.post(PREDICT_POLLUTANT_URL, createFormData(buffer, contentType), {
@@ -309,7 +308,10 @@ export class DetectTrashController {
                 wasteDetection: savedDetection,
                 wasteDetectionId: savedDetection.id
             });
+            wasteDetection.greenScoreId = newGreenScore.id;
+            await WasteDetectionRepository.save(wasteDetection);
             return await greenScoreRepository.save(newGreenScore);
+
         } catch (error: any) {
             console.error("AnalyzeImage Error:", error);
             res.status(500).json({ error: "Internal server error" });
