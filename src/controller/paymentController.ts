@@ -237,24 +237,43 @@ class PaymentController {
                     break;
 
                 // ── Checkout Session ───────────────────────────────────
-                case "checkout.session.completed":
+                case "checkout.session.completed": {
                     log("info", event.type, `id=${obj.id} customer=${obj.customer} total=${(obj.amount_total ?? 0) / 100}`);
-                    // Mark waste bill as paid if this checkout was for a waste bill
-                    if (obj.metadata?.wasteDetectionId) {
+                    // Mark all records in the monthly waste bill group as paid
+                    const meta = obj.metadata as Record<string, string> | undefined;
+                    if (meta?.householdId && meta?.month && meta?.year) {
                         try {
+                            const { In: TypeORMIn } = await import("typeorm");
                             const repo = AppDataSource.getRepository(WasteDetection);
-                            const record = await repo.findOne({ where: { id: obj.metadata.wasteDetectionId } });
-                            if (record && !record.isPaid) {
-                                record.isPaid = true;
-                                record.paidAt = new Date();
-                                await repo.save(record);
-                                log("info", event.type, `waste bill ${record.id} marked as paid`);
+                            const monthNum = parseInt(meta.month, 10);
+                            const yearNum  = parseInt(meta.year,  10);
+
+                            // Fetch all unpaid records for this household + month/year
+                            const records = await repo
+                                .createQueryBuilder("wd")
+                                .where("wd.householdId = :hid", { hid: meta.householdId })
+                                .andWhere("wd.status = :status", { status: STATUS.PICKED_UP })
+                                .andWhere("wd.isPaid = false")
+                                .andWhere("EXTRACT(YEAR  FROM wd.pickedUpAt) = :year",  { year: yearNum })
+                                .andWhere("EXTRACT(MONTH FROM wd.pickedUpAt) = :month", { month: monthNum })
+                                .getMany();
+
+                            if (records.length > 0) {
+                                const paidAt = new Date();
+                                for (const r of records) {
+                                    r.isPaid = true;
+                                    r.paidAt = paidAt;
+                                }
+                                await repo.save(records);
+                                log("info", event.type,
+                                    `marked ${records.length} waste records as paid — household=${meta.householdId} ${monthNum}/${yearNum}`);
                             }
                         } catch (e) {
-                            log("error", event.type, `failed to mark waste bill paid: ${(e as Error).message}`);
+                            log("error", event.type, `failed to mark waste bill group paid: ${(e as Error).message}`);
                         }
                     }
                     break;
+                }
 
                 case "checkout.session.expired":
                     log("warn", event.type, `id=${obj.id} expired without payment`);
@@ -434,9 +453,14 @@ class PaymentController {
         }
     }
     /**
-     * GET /payments/waste-bills?paid=false&page=1&limit=20
-     * List waste detection records that are picked_up, with bill amount (kg × 500 VND).
-     * paid=false → chưa thanh toán | paid=true → đã thanh toán | omit → tất cả
+     * GET /payments/waste-bills?paid=false
+     * Returns waste bills grouped by household + month.
+     * Each group has: billName, total (VND), dueDate (10th of next month),
+     * isPaid (true only when every record in the group is paid).
+     *
+     * paid=false  → only groups that still have at least one unpaid record
+     * paid=true   → only fully-paid groups
+     * (omit)      → all groups
      */
     public async getWasteBills(req: Request, res: Response) {
         if (!req.user?.userId) {
@@ -444,45 +468,81 @@ class PaymentController {
         }
 
         const RATE_VND_PER_KG = 500;
-        const page = Math.max(1, parseInt(String(req.query.page ?? "1"), 10));
-        const limit = Math.min(50, Math.max(1, parseInt(String(req.query.limit ?? "20"), 10)));
-        const paidFilter = req.query.paid;
+        const paidFilter = req.query.paid as string | undefined;
 
         try {
-            const repo = AppDataSource.getRepository(WasteDetection);
-            const qb = repo.createQueryBuilder("wd")
+            // Raw aggregation: group by householdId + year + month
+            const rows: {
+                householdId: string;
+                year: string;
+                month: string;
+                total: string;
+                recordCount: string;
+                paidCount: string;
+                lastPickedAt: Date;
+            }[] = await AppDataSource
+                .getRepository(WasteDetection)
+                .createQueryBuilder("wd")
+                .select("wd.householdId", "householdId")
+                .addSelect("EXTRACT(YEAR  FROM wd.pickedUpAt)::int", "year")
+                .addSelect("EXTRACT(MONTH FROM wd.pickedUpAt)::int", "month")
+                .addSelect(
+                    `SUM(COALESCE(wd.billAmount, wd.totalMassKg * ${RATE_VND_PER_KG}))::float`,
+                    "total",
+                )
+                .addSelect("COUNT(*)::int", "recordCount")
+                .addSelect(
+                    "SUM(CASE WHEN wd.isPaid = true THEN 1 ELSE 0 END)::int",
+                    "paidCount",
+                )
+                .addSelect("MAX(wd.pickedUpAt)", "lastPickedAt")
                 .where("wd.householdId IS NOT NULL")
                 .andWhere("wd.status = :status", { status: STATUS.PICKED_UP })
                 .andWhere("wd.totalMassKg IS NOT NULL")
-                .orderBy("wd.pickedUpAt", "DESC")
-                .skip((page - 1) * limit)
-                .take(limit);
+                .andWhere("wd.pickedUpAt IS NOT NULL")
+                .groupBy("wd.householdId")
+                .addGroupBy("EXTRACT(YEAR  FROM wd.pickedUpAt)")
+                .addGroupBy("EXTRACT(MONTH FROM wd.pickedUpAt)")
+                .orderBy("year",  "DESC")
+                .addOrderBy("month", "DESC")
+                .getRawMany();
 
-            if (paidFilter === "true") qb.andWhere("wd.isPaid = true");
-            if (paidFilter === "false") qb.andWhere("wd.isPaid = false");
+            // Shape into monthly bill objects
+            let groups = rows.map((row) => {
+                const year  = Number(row.year);
+                const month = Number(row.month);
+                const recordCount = Number(row.recordCount);
+                const paidCount   = Number(row.paidCount);
+                const isPaid      = recordCount > 0 && paidCount === recordCount;
+                const total       = parseFloat(Number(row.total).toFixed(2));
 
-            const [records, total] = await qb.getManyAndCount();
+                // Due date: 10th of the following month
+                const dueDate = new Date(year, month, 10); // month is 0-indexed → month+1 = next month
 
-            const data = records.map((r) => ({
-                id: r.id,
-                householdId: r.householdId,
-                totalMassKg: r.totalMassKg,
-                billAmount: r.billAmount ?? (r.totalMassKg! * RATE_VND_PER_KG),
-                ratePerKg: RATE_VND_PER_KG,
-                isPaid: r.isPaid,
-                paidAt: r.paidAt ?? null,
-                pickedUpAt: r.pickedUpAt ?? null,
-                collectorId: r.collectorId ?? null,
-                imageUrl: r.imageUrl ?? null,
-                annotatedImageUrl: r.annotatedImageUrl ?? null,
-                status: r.status,
-                createdAt: r.createdAt,
-            }));
+                const billName = `Hóa đơn thu gom rác - Tháng ${month}/${year}`;
+
+                return {
+                    householdId: row.householdId,
+                    year,
+                    month,
+                    billName,
+                    total,
+                    ratePerKg: RATE_VND_PER_KG,
+                    dueDate: dueDate.toISOString().split("T")[0], // YYYY-MM-DD
+                    isPaid,
+                    recordCount,
+                    paidCount,
+                    lastPickedAt: row.lastPickedAt,
+                };
+            });
+
+            // Filter by paid status at the group level
+            if (paidFilter === "true")  groups = groups.filter((g) => g.isPaid);
+            if (paidFilter === "false") groups = groups.filter((g) => !g.isPaid);
 
             return res.status(200).json({
                 message: "Waste bills retrieved",
-                data,
-                pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+                data: groups,
             });
         } catch (err) {
             return res.status(500).json({ message: "Failed to fetch waste bills", error: (err as Error).message });
@@ -491,8 +551,12 @@ class PaymentController {
 
     /**
      * POST /payments/waste-checkout
-     * Create a Stripe Checkout Session to pay a specific waste bill.
-     * Body: { wasteDetectionId, successUrl, cancelUrl }
+     * Create a Stripe Checkout Session for a whole monthly waste bill group.
+     * Body: { householdId, month, year, successUrl, cancelUrl }
+     *
+     * Pays ALL unpaid picked_up records for the given household + month + year.
+     * The Stripe metadata stores householdId/month/year so the webhook can mark
+     * every record in the group as paid on checkout.session.completed.
      */
     public async createWasteCheckout(req: Request, res: Response) {
         if (!req.user?.userId) {
@@ -500,32 +564,53 @@ class PaymentController {
         }
 
         const RATE_VND_PER_KG = 500;
-        const { wasteDetectionId, successUrl, cancelUrl } = req.body as Record<string, string>;
+        const { householdId, month, year, successUrl, cancelUrl } = req.body as Record<string, string>;
 
-        if (!wasteDetectionId || !successUrl || !cancelUrl) {
-            return res.status(400).json({ message: "wasteDetectionId, successUrl and cancelUrl are required" });
+        if (!householdId || !month || !year || !successUrl || !cancelUrl) {
+            return res.status(400).json({
+                message: "householdId, month, year, successUrl and cancelUrl are required",
+            });
+        }
+
+        const monthNum = parseInt(month, 10);
+        const yearNum  = parseInt(year,  10);
+
+        if (isNaN(monthNum) || monthNum < 1 || monthNum > 12) {
+            return res.status(400).json({ message: "month must be a number between 1 and 12" });
+        }
+        if (isNaN(yearNum) || yearNum < 2020) {
+            return res.status(400).json({ message: "year must be a valid year (>= 2020)" });
         }
 
         try {
             const repo = AppDataSource.getRepository(WasteDetection);
-            const record = await repo.findOne({ where: { id: wasteDetectionId } });
 
-            if (!record) {
-                return res.status(404).json({ message: "Waste detection record not found" });
-            }
-            if (record.status !== STATUS.PICKED_UP) {
-                return res.status(400).json({ message: "Can only pay for picked_up waste records" });
-            }
-            if (record.isPaid) {
-                return res.status(400).json({ message: "This bill has already been paid" });
-            }
-            if (!record.totalMassKg) {
-                return res.status(400).json({ message: "Waste record has no weight recorded" });
+            // Find all unpaid records in the requested household + month/year
+            const records = await repo
+                .createQueryBuilder("wd")
+                .where("wd.householdId = :householdId", { householdId })
+                .andWhere("wd.status = :status", { status: STATUS.PICKED_UP })
+                .andWhere("wd.totalMassKg IS NOT NULL")
+                .andWhere("wd.isPaid = false")
+                .andWhere("EXTRACT(YEAR  FROM wd.pickedUpAt) = :year",  { year: yearNum })
+                .andWhere("EXTRACT(MONTH FROM wd.pickedUpAt) = :month", { month: monthNum })
+                .getMany();
+
+            if (records.length === 0) {
+                return res.status(404).json({
+                    message: `No unpaid waste records found for household ${householdId} in ${monthNum}/${yearNum}`,
+                });
             }
 
-            const billAmount = record.billAmount ?? record.totalMassKg * RATE_VND_PER_KG;
-            // VND is zero-decimal in Stripe — amount = VND directly (no ×100)
-            const stripeAmount = Math.round(billAmount);
+            // Calculate monthly total
+            const totalMassKg = records.reduce((sum, r) => sum + (r.totalMassKg ?? 0), 0);
+            const totalAmount  = records.reduce(
+                (sum, r) => sum + (r.billAmount ? Number(r.billAmount) : (r.totalMassKg ?? 0) * RATE_VND_PER_KG),
+                0,
+            );
+            const stripeAmount = Math.round(totalAmount); // VND is zero-decimal
+
+            const billName = `Hóa đơn thu gom rác - Tháng ${monthNum}/${yearNum}`;
 
             const stripe = getStripe();
             const session = await stripe.checkout.sessions.create({
@@ -535,8 +620,8 @@ class PaymentController {
                     price_data: {
                         currency: "vnd",
                         product_data: {
-                            name: `Phí thu gom rác — ${record.totalMassKg.toFixed(2)} kg`,
-                            description: `${record.totalMassKg.toFixed(2)} kg × ${RATE_VND_PER_KG} VND/kg`,
+                            name: billName,
+                            description: `${totalMassKg.toFixed(2)} kg × ${RATE_VND_PER_KG} VND/kg — ${records.length} lần thu gom`,
                         },
                         unit_amount: stripeAmount,
                     },
@@ -546,25 +631,36 @@ class PaymentController {
                 cancel_url: cancelUrl,
                 metadata: {
                     userId: req.user.userId,
-                    wasteDetectionId: record.id,
-                    householdId: record.householdId ?? "",
-                    totalMassKg: String(record.totalMassKg),
-                    billAmount: String(billAmount),
+                    householdId,
+                    month: String(monthNum),
+                    year:  String(yearNum),
+                    billName,
+                    totalAmount: String(totalAmount),
+                    recordCount: String(records.length),
                 },
             });
 
-            // Pre-save billAmount on the record for reference
-            record.billAmount = billAmount;
-            await repo.save(record);
+            // Pre-save billAmount on each record for audit trail
+            const now = new Date();
+            await Promise.all(
+                records.map((r) => {
+                    r.billAmount = r.billAmount ?? (r.totalMassKg! * RATE_VND_PER_KG);
+                    return repo.save(r);
+                }),
+            );
 
             return res.status(200).json({
                 message: "Waste checkout session created",
                 data: {
                     url: session.url,
                     sessionId: session.id,
-                    billAmount,
-                    totalMassKg: record.totalMassKg,
+                    billName,
+                    totalAmount,
+                    totalMassKg,
                     ratePerKg: RATE_VND_PER_KG,
+                    recordCount: records.length,
+                    month: monthNum,
+                    year: yearNum,
                 },
             });
         } catch (err) {
