@@ -1,5 +1,6 @@
-import { Column, CreateDateColumn, Entity, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
+import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, OneToOne, PrimaryGeneratedColumn } from "typeorm";
 import { Household } from "./household";
+import { WasteDetection } from "./WasteDetection";
 
 const GREN_SCORE_TABLE_NAME = 'green_score';
 
@@ -29,6 +30,13 @@ export class GreenScore {
 
     @ManyToOne(() => Household, { nullable: true, onDelete: 'SET NULL' })
     household?: Household;
+
+    @OneToOne(() => WasteDetection, wasteDetection => wasteDetection.greenScore)
+    @JoinColumn({ name: 'wasteDetectionId' })
+    wasteDetection?: WasteDetection;
+
+    @Column({ type: 'uuid', nullable: true })
+    wasteDetectionId?: string;
 
     @CreateDateColumn({ type: 'timestamp' })
     createdAt!: Date;
