@@ -91,31 +91,39 @@ class CampaignController {
                 );
             }
 
-            // Auto-create a blog post announcing the campaign
+            // Auto-create a blog post announcing the campaign (idempotent — skip if already exists)
             try {
-                const creator = await getUserRepo().findOneBy({ id: userId });
-                const startStr = new Date(startDate).toLocaleDateString('vi-VN');
-                const endStr   = new Date(endDate).toLocaleDateString('vi-VN');
-                const areaName = creator?.fullName ?? 'Khu vực';
-
-                const blogContent = [
-                    `${name}`,
-                    description ? description : '',
-                    `Thời gian: ${startStr} – ${endStr}`,
-                    `Khu vực: ${areaName}`,
-                    `Xem chiến dịch: ${name}`,
-                ].filter(Boolean).join('\n');
-
-                const blogRepo = getBlogRepo();
-                await blogRepo.save(
-                    blogRepo.create({
+                const existing = await getBlogRepo().findOne({
+                    where: {
                         title: `[Chiến dịch] ${name}`,
-                        content: blogContent,
-                        tags: ['chiến dịch', 'tình nguyện'],
-                        like_count: 0,
                         author_id: userId,
-                    })
-                );
+                    },
+                });
+                if (!existing) {
+                    const creator = await getUserRepo().findOneBy({ id: userId });
+                    const startStr = new Date(startDate).toLocaleDateString('vi-VN');
+                    const endStr   = new Date(endDate).toLocaleDateString('vi-VN');
+                    const areaName = creator?.fullName ?? 'Khu vực';
+
+                    const blogContent = [
+                        `${name}`,
+                        description ? description : '',
+                        `Thời gian: ${startStr} – ${endStr}`,
+                        `Khu vực: ${areaName}`,
+                        `Xem chiến dịch: ${name}`,
+                    ].filter(Boolean).join('\n');
+
+                    const blogRepo = getBlogRepo();
+                    await blogRepo.save(
+                        blogRepo.create({
+                            title: `[Chiến dịch] ${name}`,
+                            content: blogContent,
+                            tags: ['chiến dịch', 'tình nguyện'],
+                            like_count: 0,
+                            author_id: userId,
+                        })
+                    );
+                }
             } catch (blogErr) {
                 console.warn('[createCampaign] Could not auto-create blog post:', blogErr);
             }
