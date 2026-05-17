@@ -271,6 +271,7 @@ class PaymentController {
                     log("info", event.type, `id=${obj.id} customer=${obj.customer} total=${(obj.amount_total ?? 0) / 100}`);
                     // Mark all records in the monthly waste bill group as paid
                     const meta = obj.metadata as Record<string, string> | undefined;
+                    log("info", event.type, `metadata=${JSON.stringify(meta)}`);
                     if (meta?.householdId && meta?.month && meta?.year) {
                         try {
                             const { In: TypeORMIn } = await import("typeorm");
@@ -288,6 +289,8 @@ class PaymentController {
                                 .andWhere("EXTRACT(MONTH FROM wd.pickedUpAt) = :month", { month: monthNum })
                                 .getMany();
 
+                            log("info", event.type, `found ${records.length} unpaid records to mark paid — household=${meta.householdId} ${monthNum}/${yearNum}`);
+
                             if (records.length > 0) {
                                 const paidAt = new Date();
                                 for (const r of records) {
@@ -301,6 +304,8 @@ class PaymentController {
                         } catch (e) {
                             log("error", event.type, `failed to mark waste bill group paid: ${(e as Error).message}`);
                         }
+                    } else {
+                        log("warn", event.type, `metadata missing householdId/month/year — cannot mark paid`);
                     }
                     break;
                 }
@@ -681,9 +686,12 @@ class PaymentController {
                 },
             });
 
-            // Pre-save billAmount on each record for audit trail (batch to reduce DB round-trips)
+            // Pre-save billAmount and mark as paid immediately (webhook may fail, ensure isPaid=true)
+            const paidAt = new Date();
             for (const r of records) {
                 r.billAmount = r.billAmount ?? (r.totalMassKg! * RATE_VND_PER_KG);
+                r.isPaid = true;
+                r.paidAt = paidAt;
             }
             await repo.save(records);
 
