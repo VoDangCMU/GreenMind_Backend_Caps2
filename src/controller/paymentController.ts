@@ -519,30 +519,30 @@ class PaymentController {
             }[] = await AppDataSource
                 .getRepository(WasteDetection)
                 .createQueryBuilder("wd")
-                .select("wd.household_id", "householdId")
-                .addSelect("EXTRACT(YEAR  FROM wd.picked_up_at)::int", "year")
-                .addSelect("EXTRACT(MONTH FROM wd.picked_up_at)::int", "month")
+                .select("wd.householdId", "householdId")
+                .addSelect("EXTRACT(YEAR  FROM wd.pickedUpAt)::int", "year")
+                .addSelect("EXTRACT(MONTH FROM wd.pickedUpAt)::int", "month")
                 .addSelect(
-                    `SUM(COALESCE(wd.bill_amount, wd.total_mass_kg * ${RATE_VND_PER_KG}))::float`,
+                    `SUM(COALESCE(wd.billAmount, wd.totalMassKg * ${RATE_VND_PER_KG}))::float`,
                     "total",
                 )
                 .addSelect("COUNT(*)::int", "recordCount")
                 .addSelect(
-                    "SUM(CASE WHEN wd.is_paid = true THEN 1 ELSE 0 END)::int",
+                    "SUM(CASE WHEN wd.isPaid = true THEN 1 ELSE 0 END)::int",
                     "paidCount",
                 )
-                .addSelect("MAX(wd.picked_up_at)", "lastPickedAt")
-                .where("wd.household_id IS NOT NULL")
+                .addSelect("MAX(wd.pickedUpAt)", "lastPickedAt")
+                .where("wd.householdId IS NOT NULL")
                 .andWhere("wd.status = :status", { status: STATUS.PICKED_UP })
-                .andWhere("wd.total_mass_kg IS NOT NULL")
-                .andWhere("wd.picked_up_at IS NOT NULL")
+                .andWhere("wd.totalMassKg IS NOT NULL")
+                .andWhere("wd.pickedUpAt IS NOT NULL")
                 // Filter: only return bills for the user's own household
-                .andWhere("wd.household_id = :userId", { userId: req.user!.userId })
-                .groupBy("wd.household_id")
-                .addGroupBy("EXTRACT(YEAR  FROM wd.picked_up_at)")
-                .addGroupBy("EXTRACT(MONTH FROM wd.picked_up_at)")
-                .orderBy("EXTRACT(YEAR  FROM wd.picked_up_at)", "DESC")
-                .addOrderBy("EXTRACT(MONTH FROM wd.picked_up_at)", "DESC")
+                .andWhere("wd.userId = :userId", { userId: req.user!.userId })
+                .groupBy("wd.householdId")
+                .addGroupBy("EXTRACT(YEAR  FROM wd.pickedUpAt)")
+                .addGroupBy("EXTRACT(MONTH FROM wd.pickedUpAt)")
+                .orderBy("EXTRACT(YEAR  FROM wd.pickedUpAt)", "DESC")
+                .addOrderBy("EXTRACT(MONTH FROM wd.pickedUpAt)", "DESC")
                 .getRawMany();
 
             // Shape into monthly bill objects
