@@ -246,7 +246,7 @@ class PaymentController {
                             const { In: TypeORMIn } = await import("typeorm");
                             const repo = AppDataSource.getRepository(WasteDetection);
                             const monthNum = parseInt(meta.month, 10);
-                            const yearNum  = parseInt(meta.year,  10);
+                            const yearNum = parseInt(meta.year, 10);
 
                             // Fetch all unpaid records for this household + month/year
                             const records = await repo
@@ -254,7 +254,7 @@ class PaymentController {
                                 .where("wd.householdId = :hid", { hid: meta.householdId })
                                 .andWhere("wd.status = :status", { status: STATUS.PICKED_UP })
                                 .andWhere("wd.isPaid = false")
-                                .andWhere("EXTRACT(YEAR  FROM wd.pickedUpAt) = :year",  { year: yearNum })
+                                .andWhere("EXTRACT(YEAR  FROM wd.pickedUpAt) = :year", { year: yearNum })
                                 .andWhere("EXTRACT(MONTH FROM wd.pickedUpAt) = :month", { month: monthNum })
                                 .getMany();
 
@@ -472,6 +472,7 @@ class PaymentController {
 
         try {
             // Raw aggregation: group by householdId + year + month
+            // ⚠️ Filter by userId to avoid leaking other users' household data
             const rows: {
                 householdId: string;
                 year: string;
@@ -500,21 +501,22 @@ class PaymentController {
                 .andWhere("wd.status = :status", { status: STATUS.PICKED_UP })
                 .andWhere("wd.totalMassKg IS NOT NULL")
                 .andWhere("wd.pickedUpAt IS NOT NULL")
+                .andWhere("wd.userId = :userId", { userId: req.user!.userId })
                 .groupBy("wd.householdId")
                 .addGroupBy("EXTRACT(YEAR  FROM wd.pickedUpAt)")
                 .addGroupBy("EXTRACT(MONTH FROM wd.pickedUpAt)")
-                .orderBy("year",  "DESC")
-                .addOrderBy("month", "DESC")
+                .orderBy("EXTRACT(YEAR  FROM wd.pickedUpAt)", "DESC")
+                .addOrderBy("EXTRACT(MONTH FROM wd.pickedUpAt)", "DESC")
                 .getRawMany();
 
             // Shape into monthly bill objects
             let groups = rows.map((row) => {
-                const year  = Number(row.year);
+                const year = Number(row.year);
                 const month = Number(row.month);
                 const recordCount = Number(row.recordCount);
-                const paidCount   = Number(row.paidCount);
-                const isPaid      = recordCount > 0 && paidCount === recordCount;
-                const total       = parseFloat(Number(row.total).toFixed(2));
+                const paidCount = Number(row.paidCount);
+                const isPaid = recordCount > 0 && paidCount === recordCount;
+                const total = parseFloat(Number(row.total).toFixed(2));
 
                 // Due date: 10th of the following month
                 const dueDate = new Date(year, month, 10); // month is 0-indexed → month+1 = next month
@@ -537,7 +539,7 @@ class PaymentController {
             });
 
             // Filter by paid status at the group level
-            if (paidFilter === "true")  groups = groups.filter((g) => g.isPaid);
+            if (paidFilter === "true") groups = groups.filter((g) => g.isPaid);
             if (paidFilter === "false") groups = groups.filter((g) => !g.isPaid);
 
             return res.status(200).json({
@@ -573,7 +575,7 @@ class PaymentController {
         }
 
         const monthNum = parseInt(month, 10);
-        const yearNum  = parseInt(year,  10);
+        const yearNum = parseInt(year, 10);
 
         if (isNaN(monthNum) || monthNum < 1 || monthNum > 12) {
             return res.status(400).json({ message: "month must be a number between 1 and 12" });
@@ -592,7 +594,7 @@ class PaymentController {
                 .andWhere("wd.status = :status", { status: STATUS.PICKED_UP })
                 .andWhere("wd.totalMassKg IS NOT NULL")
                 .andWhere("wd.isPaid = false")
-                .andWhere("EXTRACT(YEAR  FROM wd.pickedUpAt) = :year",  { year: yearNum })
+                .andWhere("EXTRACT(YEAR  FROM wd.pickedUpAt) = :year", { year: yearNum })
                 .andWhere("EXTRACT(MONTH FROM wd.pickedUpAt) = :month", { month: monthNum })
                 .getMany();
 
@@ -602,9 +604,17 @@ class PaymentController {
                 });
             }
 
+            // Guard: if every record is already paid, reject to prevent double-payment
+            const allPaid = records.every((r) => r.isPaid);
+            if (allPaid) {
+                return res.status(409).json({
+                    message: `Bill for household ${householdId} in ${monthNum}/${yearNum} is already fully paid`,
+                });
+            }
+
             // Calculate monthly total
             const totalMassKg = records.reduce((sum, r) => sum + (r.totalMassKg ?? 0), 0);
-            const totalAmount  = records.reduce(
+            const totalAmount = records.reduce(
                 (sum, r) => sum + (r.billAmount ? Number(r.billAmount) : (r.totalMassKg ?? 0) * RATE_VND_PER_KG),
                 0,
             );
@@ -633,21 +643,18 @@ class PaymentController {
                     userId: req.user.userId,
                     householdId,
                     month: String(monthNum),
-                    year:  String(yearNum),
+                    year: String(yearNum),
                     billName,
                     totalAmount: String(totalAmount),
                     recordCount: String(records.length),
                 },
             });
 
-            // Pre-save billAmount on each record for audit trail
-            const now = new Date();
-            await Promise.all(
-                records.map((r) => {
-                    r.billAmount = r.billAmount ?? (r.totalMassKg! * RATE_VND_PER_KG);
-                    return repo.save(r);
-                }),
-            );
+            // Pre-save billAmount on each record for audit trail (batch to reduce DB round-trips)
+            for (const r of records) {
+                r.billAmount = r.billAmount ?? (r.totalMassKg! * RATE_VND_PER_KG);
+            }
+            await repo.save(records);
 
             return res.status(200).json({
                 message: "Waste checkout session created",

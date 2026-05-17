@@ -110,7 +110,6 @@ Content-Type: application/json
 }
 ```
 
-
 ---
 
 ### 3. List Stripe Invoices (Subscription / Checkout)
@@ -216,21 +215,28 @@ if (!error) {
 
 ---
 
-### 5. List Waste Bills (Hóa Đơn Rác)
+### 5. List Waste Bills (Hóa Đơn Rác Theo Tháng)
 
 ```
-GET /payments/waste-bills?paid=false&page=1&limit=20
+GET /payments/waste-bills?paid=false
 ```
 
-Trả về danh sách hóa đơn rác đã được thu gom (`status = picked_up`), tính tiền theo `totalMassKg × 500 VND`.
+Trả về danh sách hóa đơn rác **gom nhóm theo hộ gia đình + tháng**.  
+Mỗi nhóm là một hóa đơn tháng bao gồm toàn bộ các lần thu gom trong tháng đó.
 
 **Query Params:**
 
 | Param | Giá trị | Mô tả |
 |-------|---------|-------|
-| `paid` | `true` / `false` | Lọc theo trạng thái thanh toán. Không truyền = tất cả |
-| `page` | number | Default `1` |
-| `limit` | number | Default `20`, tối đa `50` |
+| `paid` | `true` / `false` | Lọc theo trạng thái. Không truyền = trả tất cả |
+
+> `isPaid = true` khi **tất cả** lần thu gom trong tháng đều đã thanh toán.
+
+**Request:**
+```http
+GET /api/payments/waste-bills?paid=false
+Authorization: Bearer <access_token>
+```
 
 **Response 200:**
 ```json
@@ -238,37 +244,68 @@ Trả về danh sách hóa đơn rác đã được thu gom (`status = picked_up
   "message": "Waste bills retrieved",
   "data": [
     {
-      "id": "uuid",
-      "householdId": "uuid",
-      "totalMassKg": 5.2,
-      "billAmount": 2600,
+      "householdId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "year": 2026,
+      "month": 5,
+      "billName": "Hóa đơn thu gom rác - Tháng 5/2026",
+      "total": 7500,
       "ratePerKg": 500,
+      "dueDate": "2026-06-10",
       "isPaid": false,
-      "paidAt": null,
-      "pickedUpAt": "2026-05-15T10:00:00.000Z",
-      "collectorId": "uuid",
-      "status": "picked_up"
+      "recordCount": 3,
+      "paidCount": 1,
+      "lastPickedAt": "2026-05-28T14:30:00.000Z"
+    },
+    {
+      "householdId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "year": 2026,
+      "month": 4,
+      "billName": "Hóa đơn thu gom rác - Tháng 4/2026",
+      "total": 3000,
+      "ratePerKg": 500,
+      "dueDate": "2026-05-10",
+      "isPaid": true,
+      "recordCount": 2,
+      "paidCount": 2,
+      "lastPickedAt": "2026-04-25T09:00:00.000Z"
     }
-  ],
-  "pagination": { "page": 1, "limit": 20, "total": 8, "totalPages": 1 }
+  ]
 }
 ```
 
+**Giải thích fields:**
+
+| Field | Mô tả |
+|-------|-------|
+| `householdId` | UUID của hộ gia đình |
+| `year` / `month` | Năm / tháng của nhóm hóa đơn |
+| `billName` | Tên hiển thị: `"Hóa đơn thu gom rác - Tháng M/YYYY"` |
+| `total` | Tổng tiền cần thanh toán (VND) |
+| `ratePerKg` | Đơn giá (luôn là `500 VND/kg`) |
+| `dueDate` | Hạn thanh toán — luôn là **ngày 10 tháng tiếp theo** (`YYYY-MM-DD`) |
+| `isPaid` | `true` khi tất cả lần thu gom đã trả |
+| `recordCount` | Tổng số lần thu gom trong tháng |
+| `paidCount` | Số lần thu gom đã thanh toán |
+| `lastPickedAt` | Thời điểm thu gom gần nhất |
+
 ---
 
-### 6. Thanh Toán Waste Bill
+### 6. Thanh Toán Hóa Đơn Rác Theo Tháng
 
 ```
 POST /payments/waste-checkout
 ```
 
-Tạo Stripe Checkout Session để thanh toán một hóa đơn rác cụ thể.
+Tạo Stripe Checkout Session để thanh toán **toàn bộ** hóa đơn rác của một hộ trong một tháng.  
+Webhook Stripe tự động mark tất cả records trong nhóm là `isPaid = true` khi thanh toán thành công.
 
 **Request Body:**
 
 | Field | Type | Required | Mô tả |
 |-------|------|----------|-------|
-| `wasteDetectionId` | string (uuid) | ✅ | ID của waste detection record |
+| `householdId` | string (uuid) | ✅ | ID hộ gia đình |
+| `month` | integer (1–12) | ✅ | Tháng cần thanh toán |
+| `year` | integer (≥ 2020) | ✅ | Năm cần thanh toán |
 | `successUrl` | string | ✅ | URL redirect sau khi thanh toán thành công |
 | `cancelUrl` | string | ✅ | URL redirect khi huỷ |
 
@@ -279,7 +316,9 @@ Authorization: Bearer <access_token>
 Content-Type: application/json
 
 {
-  "wasteDetectionId": "uuid",
+  "householdId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "month": 5,
+  "year": 2026,
   "successUrl": "greenmind://payment/success",
   "cancelUrl": "greenmind://payment/cancel"
 }
@@ -292,47 +331,81 @@ Content-Type: application/json
   "data": {
     "url": "https://checkout.stripe.com/pay/cs_test_...",
     "sessionId": "cs_test_...",
-    "billAmount": 2600,
-    "totalMassKg": 5.2,
-    "ratePerKg": 500
+    "billName": "Hóa đơn thu gom rác - Tháng 5/2026",
+    "totalAmount": 7500,
+    "totalMassKg": 15.0,
+    "ratePerKg": 500,
+    "recordCount": 3,
+    "month": 5,
+    "year": 2026
   }
 }
 ```
 
-**Validation — Backend tự kiểm tra:**
-- `status` phải là `picked_up`
-- `isPaid` phải là `false` (chưa thanh toán)
-- `totalMassKg` phải có giá trị
+**Response 400 — Thiếu / sai params:**
+```json
+{ "message": "householdId, month, year, successUrl and cancelUrl are required" }
+```
+
+```json
+{ "message": "month must be a number between 1 and 12" }
+```
+
+**Response 404 — Không có record chưa thanh toán:**
+```json
+{
+  "message": "No unpaid waste records found for household 3fa85f64-... in 5/2026"
+}
+```
 
 **Sau khi Stripe thanh toán xong:**
 
 Stripe gọi webhook `checkout.session.completed` → Backend tự động:
-- Set `isPaid = true`
-- Set `paidAt = now()`
+- Tìm tất cả records `isPaid = false` của `householdId` trong `month/year`
+- Set `isPaid = true` và `paidAt = now()` cho **toàn bộ** nhóm
 
-> VND là **zero-decimal currency** trong Stripe — `billAmount` truyền trực tiếp, **không nhân 100**.
+> VND là **zero-decimal currency** trong Stripe — `totalAmount` truyền trực tiếp, **không nhân 100**.
+
+**Giải thích fields response:**
+
+| Field | Mô tả |
+|-------|-------|
+| `url` | Redirect user đến URL này để thanh toán trên Stripe |
+| `sessionId` | Stripe Checkout Session ID |
+| `billName` | Tên hóa đơn hiển thị trên trang Stripe |
+| `totalAmount` | Tổng tiền (VND) |
+| `totalMassKg` | Tổng khối lượng rác (kg) trong tháng |
+| `recordCount` | Số lần thu gom được gộp vào hóa đơn này |
 
 ---
 
 ## Cấu Hình Mobile
 
-### Bước 1 — Gọi API & Mở URL
+### Bước 1 — Hiển thị danh sách hóa đơn & mở thanh toán
 
 ```javascript
-// React Native
-const { data } = await api.post('/payments/create-checkout', {
-  amount: 50000,
-  currency: 'vnd',
-  description: 'GreenMind Premium',
+// React Native — flow hoàn chỉnh cho waste bill
+
+// 1. Lấy danh sách hóa đơn chưa trả
+const { data } = await api.get('/payments/waste-bills?paid=false');
+const bills = data.data;
+// bills[0] = { householdId, year, month, billName, total, dueDate, isPaid, ... }
+
+// 2. Khi user bấm "Thanh toán" cho một tháng
+const bill = bills[0];
+const { data: checkout } = await api.post('/payments/waste-checkout', {
+  householdId: bill.householdId,
+  month: bill.month,
+  year: bill.year,
   successUrl: 'greenmind://payment/success',
   cancelUrl: 'greenmind://payment/cancel',
 });
 
-// Mở trang Stripe trong browser
-await Linking.openURL(data.data.url);
+// 3. Mở trang Stripe trong browser
+await Linking.openURL(checkout.data.url);
 ```
 
-> Không cần cài Stripe SDK phía mobile — chỉ cần mở URL.
+> Không cần cài Stripe SDK phía mobile cho waste-checkout — chỉ cần mở URL.
 
 ---
 
@@ -397,18 +470,21 @@ useEffect(() => {
 
 | HTTP Code | Nguyên nhân | Xử lý |
 |-----------|------------|-------|
-| `400` | Thiếu `amount`, `successUrl`, `cancelUrl` | Kiểm tra body |
+| `400` | Thiếu / sai `householdId`, `month`, `year`, `successUrl`, `cancelUrl` | Kiểm tra body |
 | `401` | Sai / hết hạn token | Refresh token, đăng nhập lại |
+| `404` | Không tìm thấy record chưa thanh toán trong tháng đó | Thông báo đã thanh toán hết hoặc chưa có rác |
 | `500` | Lỗi Stripe API | Retry sau vài giây |
 | `503` | Server chưa cấu hình Stripe | Liên hệ admin |
 
 ```javascript
 try {
-  const { data } = await api.post('/payments/create-checkout', payload);
+  const { data } = await api.post('/payments/waste-checkout', payload);
   await Linking.openURL(data.data.url);
 } catch (error) {
   switch (error.response?.status) {
+    case 400: return Alert.alert('Lỗi', error.response.data.message);
     case 401: return navigation.navigate('Login');
+    case 404: return Alert.alert('Thông báo', 'Không có hóa đơn chưa thanh toán trong tháng này.');
     case 503: return Alert.alert('Lỗi', 'Thanh toán chưa khả dụng. Liên hệ hỗ trợ.');
     default:  return Alert.alert('Lỗi', 'Không thể tạo phiên thanh toán. Thử lại sau.');
   }

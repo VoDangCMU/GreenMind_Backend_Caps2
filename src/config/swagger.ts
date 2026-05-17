@@ -104,6 +104,23 @@ const spec: OpenAPIV3.Document = {
                 type: 'object',
                 properties: { message: { type: 'string' } },
             },
+            WasteBillGroup: {
+                type: 'object',
+                description: 'A monthly waste bill group for one household',
+                properties: {
+                    householdId: { type: 'string', format: 'uuid' },
+                    year:        { type: 'integer', example: 2026 },
+                    month:       { type: 'integer', example: 5, description: '1-12' },
+                    billName:    { type: 'string', example: 'Hóa đơn thu gom rác - Tháng 5/2026' },
+                    total:       { type: 'number', example: 2500, description: 'Total amount in VND' },
+                    ratePerKg:   { type: 'integer', example: 500, description: 'VND per kg' },
+                    dueDate:     { type: 'string', format: 'date', example: '2026-06-10', description: '10th of the following month' },
+                    isPaid:      { type: 'boolean', description: 'True only when every record in the group is paid' },
+                    recordCount: { type: 'integer', description: 'Total pickup records in this month' },
+                    paidCount:   { type: 'integer', description: 'Number of records already paid' },
+                    lastPickedAt:{ type: 'string', format: 'date-time', nullable: true },
+                },
+            },
         },
     },
     paths: {
@@ -711,6 +728,179 @@ const spec: OpenAPIV3.Document = {
         '/pre-app-survey/{userId}': {
             get: { tags: ['Pre-App Survey'], summary: 'Get pre-app survey by user ID', security: [bearer], parameters: [uuidParam('userId')], responses: { '200': { description: 'Survey data' }, '404': { description: 'Not found' } } },
             delete: { tags: ['Pre-App Survey'], summary: 'Delete pre-app survey', security: [bearer], parameters: [uuidParam('userId')], responses: { '200': { description: 'Deleted' } } },
+        },
+        // ─────────────────────────── PAYMENTS ────────────────────────────────
+        '/payments/analytics': {
+            get: {
+                tags: ['Payments'],
+                summary: 'Payment analytics (revenue, transactions, series)',
+                security: [bearer],
+                parameters: [{ name: 'days', in: 'query', schema: { type: 'integer', default: 30, minimum: 1, maximum: 365 }, description: 'Number of days to look back' }],
+                responses: {
+                    '200': {
+                        description: 'Analytics data',
+                        content: { 'application/json': { schema: { type: 'object', properties: {
+                            message: { type: 'string' },
+                            data: { type: 'object', properties: {
+                                metrics: { type: 'object', properties: { totalRevenue: { type: 'integer' }, totalTransactions: { type: 'integer' }, successRate: { type: 'integer' }, avgTransactionValue: { type: 'integer' }, refundedAmount: { type: 'integer' }, pendingAmount: { type: 'integer' } } },
+                                revenueSeries: { type: 'array', items: { type: 'object', properties: { date: { type: 'string' }, revenue: { type: 'integer' }, count: { type: 'integer' } } } },
+                                statusBreakdown: { type: 'array', items: { type: 'object', properties: { status: { type: 'string' }, count: { type: 'integer' }, amount: { type: 'integer' } } } },
+                                recentTransactions: { type: 'array', items: { type: 'object' } },
+                            } },
+                        } } } },
+                    },
+                    '401': { description: 'Unauthorized' },
+                    '503': { description: 'Stripe not configured' },
+                },
+            },
+        },
+        '/payments/create-checkout': {
+            post: {
+                tags: ['Payments'],
+                summary: 'Create a generic Stripe Checkout session',
+                security: [bearer],
+                requestBody: {
+                    required: true,
+                    content: { 'application/json': { schema: { type: 'object', required: ['amount', 'successUrl', 'cancelUrl'], properties: {
+                        amount:      { type: 'integer', description: 'Amount in the smallest currency unit (e.g. cents for USD, VND as-is)' },
+                        currency:    { type: 'string', default: 'usd', example: 'vnd' },
+                        description: { type: 'string' },
+                        successUrl:  { type: 'string', format: 'uri' },
+                        cancelUrl:   { type: 'string', format: 'uri' },
+                    } } } },
+                },
+                responses: {
+                    '200': { description: 'Session created', content: { 'application/json': { schema: { type: 'object', properties: { message: { type: 'string' }, data: { type: 'object', properties: { url: { type: 'string', format: 'uri' }, sessionId: { type: 'string' } } } } } } } },
+                    '400': { description: 'Missing required fields' },
+                    '401': { description: 'Unauthorized' },
+                },
+            },
+        },
+        '/payments/invoices': {
+            get: {
+                tags: ['Payments'],
+                summary: 'List OCR-scanned invoices (local DB)',
+                security: [bearer],
+                parameters: [
+                    { name: 'page',  in: 'query', schema: { type: 'integer', default: 1 } },
+                    { name: 'limit', in: 'query', schema: { type: 'integer', default: 20, maximum: 50 } },
+                ],
+                responses: {
+                    '200': { description: 'Invoices with pagination', content: { 'application/json': { schema: { type: 'object', properties: { message: { type: 'string' }, data: { type: 'array', items: { $ref: '#/components/schemas/Invoice' } }, pagination: { type: 'object', properties: { page: { type: 'integer' }, limit: { type: 'integer' }, total: { type: 'integer' }, totalPages: { type: 'integer' } } } } } } } },
+                    '401': { description: 'Unauthorized' },
+                },
+            },
+        },
+        '/payments/setup-intent': {
+            post: {
+                tags: ['Payments'],
+                summary: 'Create a Stripe SetupIntent (save card for future payments)',
+                security: [bearer],
+                responses: {
+                    '200': { description: 'Setup intent created', content: { 'application/json': { schema: { type: 'object', properties: { message: { type: 'string' }, data: { type: 'object', properties: { clientSecret: { type: 'string' }, customerId: { type: 'string' } } } } } } } },
+                    '401': { description: 'Unauthorized' },
+                    '404': { description: 'User not found' },
+                },
+            },
+        },
+        '/payments/stripe-invoices': {
+            get: {
+                tags: ['Payments'],
+                summary: 'List Stripe invoices (subscription / checkout invoices from Stripe Dashboard)',
+                security: [bearer],
+                responses: {
+                    '200': { description: 'Stripe invoices', content: { 'application/json': { schema: { type: 'object', properties: { message: { type: 'string' }, data: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, number: { type: 'string', nullable: true }, status: { type: 'string', enum: ['draft', 'open', 'paid', 'void', 'uncollectible'] }, amountDue: { type: 'integer' }, amountPaid: { type: 'integer' }, currency: { type: 'string' }, pdfUrl: { type: 'string', nullable: true }, hostedUrl: { type: 'string', nullable: true }, createdAt: { type: 'string', format: 'date-time' }, dueDate: { type: 'string', format: 'date-time', nullable: true } } } } } } } } },
+                    '401': { description: 'Unauthorized' },
+                },
+            },
+        },
+        '/payments/waste-bills': {
+            get: {
+                tags: ['Payments'],
+                summary: 'List monthly waste bills grouped by household + month',
+                description:
+                    'Returns waste collection bills aggregated per household per calendar month.\n\n' +
+                    '- `isPaid = true` when **every** pickup record in the month is paid\n' +
+                    '- `dueDate` is always the 10th of the **following** month\n' +
+                    '- Use `paid=false` to list unpaid bills only',
+                security: [bearer],
+                parameters: [
+                    { name: 'paid', in: 'query', schema: { type: 'string', enum: ['true', 'false'] }, description: 'Filter by payment status. Omit to return all groups.' },
+                ],
+                responses: {
+                    '200': {
+                        description: 'Grouped monthly waste bills',
+                        content: { 'application/json': { schema: { type: 'object', properties: {
+                            message: { type: 'string', example: 'Waste bills retrieved' },
+                            data: { type: 'array', items: { $ref: '#/components/schemas/WasteBillGroup' } },
+                        } } } },
+                    },
+                    '401': { description: 'Unauthorized' },
+                },
+            },
+        },
+        '/payments/waste-checkout': {
+            post: {
+                tags: ['Payments'],
+                summary: 'Create a Stripe Checkout session for an entire monthly waste bill group',
+                description:
+                    'Pays **all unpaid** `picked_up` records for the given `householdId` in the specified `month`/`year`.\n\n' +
+                    'The Stripe session metadata stores `householdId`, `month`, `year` so the webhook can mark every record in the group as paid on `checkout.session.completed`.',
+                security: [bearer],
+                requestBody: {
+                    required: true,
+                    content: { 'application/json': { schema: { type: 'object', required: ['householdId', 'month', 'year', 'successUrl', 'cancelUrl'], properties: {
+                        householdId: { type: 'string', format: 'uuid' },
+                        month:       { type: 'integer', minimum: 1, maximum: 12, example: 5 },
+                        year:        { type: 'integer', minimum: 2020, example: 2026 },
+                        successUrl:  { type: 'string', format: 'uri' },
+                        cancelUrl:   { type: 'string', format: 'uri' },
+                    } } } },
+                },
+                responses: {
+                    '200': {
+                        description: 'Checkout session created',
+                        content: { 'application/json': { schema: { type: 'object', properties: {
+                            message: { type: 'string' },
+                            data: { type: 'object', properties: {
+                                url:         { type: 'string', format: 'uri', description: 'Redirect the user to this URL to complete payment' },
+                                sessionId:   { type: 'string' },
+                                billName:    { type: 'string', example: 'Hóa đơn thu gom rác - Tháng 5/2026' },
+                                totalAmount: { type: 'number', description: 'Total VND to pay' },
+                                totalMassKg: { type: 'number', description: 'Combined mass (kg) for the month' },
+                                ratePerKg:   { type: 'integer', example: 500 },
+                                recordCount: { type: 'integer', description: 'Number of pickup records being paid' },
+                                month:       { type: 'integer' },
+                                year:        { type: 'integer' },
+                            } },
+                        } } } },
+                    },
+                    '400': { description: 'Missing / invalid parameters' },
+                    '401': { description: 'Unauthorized' },
+                    '404': { description: 'No unpaid records found for the specified household + month/year' },
+                },
+            },
+        },
+        '/payments/webhook': {
+            post: {
+                tags: ['Payments'],
+                summary: 'Stripe webhook endpoint (do not call manually)',
+                description:
+                    'Receives Stripe events. Must be registered in the Stripe Dashboard.\n\n' +
+                    '**Handled events:** `payment_intent.succeeded`, `payment_intent.payment_failed`, `payment_intent.canceled`, ' +
+                    '`charge.succeeded`, `charge.failed`, `charge.refunded`, `charge.dispute.created`, ' +
+                    '`checkout.session.completed` *(marks all group records as paid)*, `checkout.session.expired`, ' +
+                    '`customer.subscription.created/updated/deleted`, `invoice.payment_succeeded`, `invoice.payment_failed`',
+                requestBody: {
+                    required: true,
+                    content: { 'application/octet-stream': { schema: { type: 'string', format: 'binary', description: 'Raw Stripe webhook body (must not be parsed by Express JSON middleware)' } } },
+                },
+                responses: {
+                    '200': { description: 'Event acknowledged' },
+                    '400': { description: 'Invalid signature or missing webhook secret' },
+                    '500': { description: 'Handler error' },
+                },
+            },
         },
     },
 };
