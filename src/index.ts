@@ -5,6 +5,7 @@ import routes from "./routes";
 import { initInfrastructure } from "./infrastructure";
 import controller from "./controller";
 import { corsMiddleware, devCorsMiddleware } from "./middlewares/corsMiddleware";
+import { errorMiddleware } from "./middlewares/errorMiddleware";
 import swaggerSpec from "./config/swagger";
 import { registerCampaignScheduler } from "./runner/campaignScheduler";
 import { createServer } from "http";
@@ -54,11 +55,8 @@ async function startServer() {
             });
         });
 
-        // Global error handler
-        app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
-            console.error('[UnhandledError]', err);
-            res.status(500).json({ message: 'Internal server error' });
-        });
+        // Global error handler — handles AppError, ZodError, TypeORM errors, and unknowns
+        app.use(errorMiddleware);
 
         httpServer.listen(config.app.port, () => {
             console.log(`Server & Socket.IO are running on port ${config.app.port}`);
