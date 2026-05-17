@@ -66,6 +66,9 @@ export class WasteDetection {
     @JoinColumn({ name: 'householdId' })
     household?: Household;
 
+    @Column({ type: 'varchar', nullable: true })
+    userId?: string;
+
     @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
     @JoinColumn({ name: 'userId' })
     detectedBy?: User;

@@ -5,13 +5,6 @@ import express from "express";
 
 const router = Router();
 
-// Stripe webhook needs raw body — must be BEFORE json middleware
-router.post(
-    "/webhook",
-    express.raw({ type: "application/json" }),
-    paymentController.handleWebhook
-);
-
 // All other routes require JWT
 router.use(jwtAuthMiddleware);
 

@@ -10,6 +10,7 @@ import swaggerSpec from "./config/swagger";
 import { registerCampaignScheduler } from "./runner/campaignScheduler";
 import { createServer } from "http";
 import { initSocketServer } from "./infrastructure/socket";
+import paymentController from "./controller/paymentController";
 
 
 async function startServer() {
@@ -29,6 +30,14 @@ async function startServer() {
         } else {
             app.use(corsMiddleware);
         }
+
+        // ⚠️ Stripe webhook MUST receive raw body for signature verification.
+        // Mount BEFORE express.json() so the body is not pre-parsed.
+        app.post(
+            "/payments/webhook",
+            express.raw({ type: "application/json" }),
+            paymentController.handleWebhook,
+        );
 
         app.use(express.json());
         app.locals.controller = controller;
