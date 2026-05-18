@@ -4,6 +4,7 @@ import AppDataSource from "../infrastructure/database";
 import { Invoice } from "../entity/invoice";
 import { User } from "../entity/user";
 import { WasteDetection, STATUS } from "../entity/WasteDetection";
+import { Transaction, TRANSACTION_STATUS } from "../entity/transaction";
 
 const getStripe = () => {
     const key = process.env.STRIPE_SECRET_KEY;
@@ -272,6 +273,26 @@ class PaymentController {
                     // Mark all records in the monthly waste bill group as paid
                     const meta = obj.metadata as Record<string, string> | undefined;
                     log("info", event.type, `metadata=${JSON.stringify(meta)}`);
+
+                    // Mark transaction as completed
+                    if (obj.id) {
+                        try {
+                            const transactionRepo = AppDataSource.getRepository(Transaction);
+                            const transaction = await transactionRepo.findOne({
+                                where: { stripeSessionId: obj.id },
+                            });
+                            if (transaction) {
+                                transaction.status = TRANSACTION_STATUS.COMPLETED;
+                                transaction.stripePaymentIntentId = obj.payment_intent ?? null;
+                                transaction.paidAt = new Date();
+                                await transactionRepo.save(transaction);
+                                log("info", event.type, `transaction ${transaction.id} marked completed`);
+                            }
+                        } catch (e) {
+                            log("error", event.type, `failed to update transaction: ${(e as Error).message}`);
+                        }
+                    }
+
                     if (meta?.householdId && meta?.month && meta?.year) {
                         try {
                             const { In: TypeORMIn } = await import("typeorm");
@@ -687,6 +708,23 @@ class PaymentController {
                     recordCount: String(records.length),
                 },
             });
+
+            // Save transaction record
+            const transactionRepo = AppDataSource.getRepository(Transaction);
+            const transaction = transactionRepo.create({
+                userId: req.user.userId,
+                householdId,
+                stripeSessionId: session.id,
+                amount: totalAmount,
+                month: monthNum,
+                year: yearNum,
+                billName,
+                totalMassKg,
+                ratePerKg: RATE_VND_PER_KG,
+                recordCount: records.length,
+                status: TRANSACTION_STATUS.PENDING,
+            });
+            await transactionRepo.save(transaction);
 
             // Pre-save billAmount and mark as paid immediately (webhook may fail, ensure isPaid=true)
             const paidAt = new Date();
