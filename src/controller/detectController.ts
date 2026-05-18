@@ -6,15 +6,18 @@ import axios from "axios";
 import FormData from "form-data";
 import { DETECT_TYPE, WasteDetection, STATUS } from "../entity/WasteDetection";
 import { MoreThan } from "typeorm";
+import { GreenScore } from "../entity/greenScore";
 
 const WasteDetectionRepository = AppDataSource.getRepository("WasteDetection");
 const UserRepository = AppDataSource.getRepository(User);
 const householdRepository = AppDataSource.getRepository(Household);
+const greenScoreRepository = AppDataSource.getRepository(GreenScore);
 
 const PREDICT_POLLUTANT_URL = "https://ai-greenmind.khoav4.com/predict-pollutant-impact";
 const DETECT_TRASH_URL = "https://ai-greenmind.khoav4.com/detect-trash";
 const TOTAL_MASS_URL = "https://ai-greenmind.khoav4.com/total-mass";
 const SEGMENT_URL = "https://ai-greenmind.khoav4.com/detect-trash-ver2";
+const AI_SCORE_URL = "https://ai-greenmind.khoav4.com/score";
 
 const createFormData = (buffer: Buffer, contentType: string) => {
     const formData = new FormData();
@@ -199,6 +202,10 @@ export class DetectTrashController {
                 relations: { household: true }
             });
 
+            if (!user) {
+                return res.status(404).json({ error: "User not found" });
+            }
+
             const imageUrl = req.body.imageUrl;
 
             if (!imageUrl) {
@@ -224,6 +231,7 @@ export class DetectTrashController {
                 detectType: DETECT_TYPE.ANALYZE_ALL,
                 householdId: user?.householdId,
                 status: STATUS.DETECTED,
+                aiAnalysis: segmentResult.data.image_url
             });
             await WasteDetectionRepository.save(wasteDetection);
             res.status(200).json({ message: "Image analysis successful", data: wasteDetection });
@@ -234,7 +242,6 @@ export class DetectTrashController {
             });
             wasteDetection.items = detectResult.data.items;
             wasteDetection.totalObjects = detectResult.data.total_objects;
-            wasteDetection.aiAnalysis = detectResult.data.image_url;
             await WasteDetectionRepository.save(wasteDetection);
 
             const predictResult = await axios.post(PREDICT_POLLUTANT_URL, createFormData(buffer, contentType), {
@@ -262,7 +269,49 @@ export class DetectTrashController {
             wasteDetection.totalMassKg = massResult.data.total_mass_kg;
             wasteDetection.annotatedImageUrl = massResult.data.annotated_image_url;
             wasteDetection.depthMapUrl = massResult.data.depth_map_url;
-            return await WasteDetectionRepository.save(wasteDetection);
+            const savedDetection = await WasteDetectionRepository.save(wasteDetection);
+
+            let currentScore;
+            const greenScore = await greenScoreRepository.findOne({
+                where: { householdId: user.householdId },
+                order: { createdAt: "DESC" },
+                relations: { household: true }
+            });
+            if (greenScore) {
+                currentScore = greenScore.finalScore;
+            } else {
+                currentScore = 50;
+            }
+
+            const aiResult = await axios.post(AI_SCORE_URL, {
+                current_score: currentScore,
+                items: detectResult.data.items,
+            }, {
+                headers: {
+                    "Content-Type": "application/json",
+                },
+            });
+            if (!aiResult) {
+                return res.status(500).json({ message: "Failed to calculate green score" });
+            }
+
+            const { delta, final_score, reasons } = aiResult.data;
+
+            const newGreenScore = greenScoreRepository.create({
+                previousScore: currentScore,
+                delta: delta,
+                finalScore: final_score,
+                householdId: user.householdId,
+                household: user.household ?? undefined,
+                items: wasteDetection.items,
+                reasons: reasons,
+                wasteDetection: savedDetection,
+                wasteDetectionId: savedDetection.id
+            });
+            wasteDetection.greenScoreId = newGreenScore.id;
+            await WasteDetectionRepository.save(wasteDetection);
+            return await greenScoreRepository.save(newGreenScore);
+
         } catch (error: any) {
             console.error("AnalyzeImage Error:", error);
             res.status(500).json({ error: "Internal server error" });
@@ -607,7 +656,7 @@ export class DetectTrashController {
                     household: { id: user.household.id },
                     createdAt: MoreThan(thirtyDaysAgo)
                 },
-                relations: { detectedBy: true, household: true },
+                relations: { detectedBy: true, household: true, greenScore: true },
                 order: { createdAt: "DESC" }
             });
             return res.status(200).json({
@@ -630,7 +679,7 @@ export class DetectTrashController {
             thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
             const detections = await WasteDetectionRepository.find({
                 where: { createdAt: MoreThan(thirtyDaysAgo) },
-                relations: { detectedBy: true, household: true },
+                relations: { detectedBy: true, household: true, greenScore: true },
                 order: { createdAt: "DESC" }
             });
             return res.status(200).json({

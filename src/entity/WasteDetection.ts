@@ -2,13 +2,15 @@ import {
     Column,
     CreateDateColumn,
     Entity,
-    JoinColumn,
     ManyToOne,
+    OneToOne,
     PrimaryGeneratedColumn,
-    UpdateDateColumn
+    UpdateDateColumn,
+    JoinColumn
 } from "typeorm";
 import { Household } from "./household";
 import { User } from "./user";
+import { GreenScore } from "./greenScore";
 export enum DETECT_TYPE {
     DETECT_TRASH = 'detect_trash',
     PREDICT_POLLUTANT = 'predict_pollutant_impact',
@@ -100,6 +102,12 @@ export class WasteDetection {
 
     @Column({ type: 'timestamp', nullable: true })
     paidAt?: Date;
+
+    @OneToOne(() => GreenScore, greenScore => greenScore.wasteDetection)
+    greenScore?: GreenScore;
+
+    @Column({ type: 'uuid', nullable: true })
+    greenScoreId?: string;
 
     @CreateDateColumn()
     createdAt!: Date;
