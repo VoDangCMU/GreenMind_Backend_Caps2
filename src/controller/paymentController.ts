@@ -537,7 +537,7 @@ class PaymentController {
                 .andWhere("wd.totalMassKg IS NOT NULL")
                 .andWhere("wd.pickedUpAt IS NOT NULL")
                 // Filter: only return bills for the user's own household
-                .andWhere("wd.householdId = (SELECT householdId FROM users WHERE id = :userId LIMIT 1)", { userId: req.user!.userId })
+                .andWhere("wd.userId = :userId", { userId: req.user!.userId })
                 .groupBy("wd.householdId")
                 .addGroupBy("EXTRACT(YEAR  FROM wd.pickedUpAt)")
                 .addGroupBy("EXTRACT(MONTH FROM wd.pickedUpAt)")
