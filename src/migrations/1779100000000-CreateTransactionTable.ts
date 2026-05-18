@@ -34,7 +34,7 @@ export class CreateTransactionTable1779100000000 implements MigrationInterface {
         await queryRunner.query(`
             ALTER TABLE "transactions"
             ADD CONSTRAINT "FK_transactions_household"
-            FOREIGN KEY ("household_id") REFERENCES "household"("id")
+            FOREIGN KEY ("household_id") REFERENCES "households"("id")
             ON DELETE SET NULL ON UPDATE NO ACTION
         `);
     }
