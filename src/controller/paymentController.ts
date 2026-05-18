@@ -601,6 +601,8 @@ class PaymentController {
             return res.status(401).json({ message: "Unauthorized" });
         }
 
+        // =>> trigger
+
         const RATE_VND_PER_KG = 500;
         const { householdId, month, year, successUrl, cancelUrl } = req.body as Record<string, string>;
 
