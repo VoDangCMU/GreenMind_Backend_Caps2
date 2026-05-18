@@ -17,7 +17,7 @@ const getStripe = () => {
 
 type LogLevel = "info" | "warn" | "error";
 function log(level: LogLevel, event: string, msg: string) {
-    const prefix = { info: "✅", warn: "⚠️", error: "❌" }[level];
+    const prefix = { info: "", warn: "️", error: "" }[level];
     console.log(`[Stripe ${prefix}] ${event}: ${msg}`);
 }
 
@@ -507,7 +507,7 @@ class PaymentController {
 
         try {
             // Raw aggregation: group by householdId + year + month
-            // ⚠️ Filter by userId to avoid leaking other users' household data
+            // ️ Filter by userId to avoid leaking other users' household data
             const rows: {
                 householdId: string;
                 year: string;

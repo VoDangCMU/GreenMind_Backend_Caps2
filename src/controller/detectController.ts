@@ -465,6 +465,11 @@ export class DetectTrashController {
             detection.collectorId = userId;
             detection.collectedBy = await UserRepository.findOne({ where: { id: userId } });
 
+            // Auto-calculate billAmount if totalMassKg exists and billAmount not yet set
+            if (detection.totalMassKg && !detection.billAmount) {
+                detection.billAmount = detection.totalMassKg * 500;
+            }
+
             await WasteDetectionRepository.save(detection);
 
             return res.status(200).json({ message: "Pickup confirmed successfully", data: detection });
